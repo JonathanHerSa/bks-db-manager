@@ -1,0 +1,14 @@
+node_modules/
+tsconfig.tsbuildinfo
+
+# MCP / local tooling logs (may contain internal hosts, IPs, usernames)
+.setting/
+
+# graphify knowledge-graph cache and generated output (local dev aid, not plugin content)
+graphify-out/
+
+# Claude Code local project settings
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
