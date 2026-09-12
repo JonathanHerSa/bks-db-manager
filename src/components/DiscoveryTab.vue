@@ -368,6 +368,7 @@ import {
   type DiscoveredProject
 } from '../services/companion';
 import { copyToSystemClipboard, showNotification } from '../services/beekeeper';
+import { getDefaultPort } from '../../shared/dbEngines.js';
 
 const loading = ref(false);
 const loadingProjects = ref(false);
@@ -396,19 +397,6 @@ function getMotorBadgeClass(motor: string): string {
   if (m === 'oracle') return 'bg-red-600/10 text-red-400 border-red-600/20';
   if (m === 'cassandra') return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
   return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-}
-
-function getDefaultPort(motor: string): number | string {
-  const m = (motor || '').toLowerCase();
-  if (m === 'postgresql' || m === 'pg') return 5432;
-  if (m === 'mysql' || m === 'mariadb') return 3306;
-  if (m === 'sqlserver' || m === 'mssql') return 1433;
-  if (m === 'redis') return 6379;
-  if (m === 'mongodb' || m === 'mongo') return 27017;
-  if (m === 'clickhouse') return 8123;
-  if (m === 'oracle') return 1521;
-  if (m === 'cassandra') return 9042;
-  return 'default';
 }
 
 // Engine filter chips
