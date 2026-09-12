@@ -1,0 +1,38 @@
+{
+  "name": "bks-db-manager",
+  "version": "1.0.0",
+  "description": "Beekeeper Studio Plugin for Live Stream Cloning, Smart Backups, Schema Diff, Docker/.env Discovery and Mock Data Generation",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "serve": "node server/index.js",
+    "companion": "node server/index.js",
+    "start": "node server/index.js & vite"
+  },
+  "dependencies": {
+    "@beekeeperstudio/plugin": "^1.7.1",
+    "@beekeeperstudio/vite-plugin": "^1.1.0",
+    "@faker-js/faker": "^9.5.0",
+    "cors": "^2.8.5",
+    "execa": "^9.5.2",
+    "express": "^4.21.2",
+    "fs-extra": "^11.3.0",
+    "lucide-vue-next": "^0.475.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.13.4",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vue-tsc": "^2.2.0"
+  }
+}

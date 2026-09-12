@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --bks-bg: var(--theme-bg, #0c0f14);
+  --bks-card: var(--theme-base, #151921);
+  --bks-card-hover: #1a202c;
+  --bks-input: #0f131a;
+  --bks-border: var(--theme-secondary, rgba(255, 255, 255, 0.08));
+  --bks-border-subtle: rgba(255, 255, 255, 0.04);
+  --bks-text: var(--text, #f1f5f9);
+  --bks-muted: var(--text-light, #94a3b8);
+  --bks-dim: var(--text-lighter, #64748b);
+  --bks-accent: var(--theme-primary, #38bdf8);
+  --bks-accent-hover: #0284c7;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bks-bg);
+  color: var(--bks-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom sleek scrollbar matching Beekeeper Studio */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Input, Select & Button dark defaults */
+input, select, textarea {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #151921;
+  color: #f1f5f9;
+}
