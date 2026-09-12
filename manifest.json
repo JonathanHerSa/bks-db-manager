@@ -9,23 +9,20 @@
     "url": "https://github.com/JonathanHerSa"
   },
   "icon": "storage",
-  "manifestVersion": 0,
+  "manifestVersion": 1,
   "capabilities": {
-    "views": {
-      "tabTypes": [
-        {
-          "id": "bks-db-manager",
-          "name": "DB Manager Pro",
-          "kind": "shell",
-          "entry": "dist/index.html"
-        }
-      ]
-    },
-    "menu": [
+    "views": [
+      {
+        "id": "bks-db-manager",
+        "name": "DB Manager Pro",
+        "type": "shell-tab",
+        "entry": "dist/index.html"
+      }
+    ],
+    "menus": [
       {
         "command": "new-tab-dropdown-item",
         "name": "Add DB Manager Pro",
-        "description": "Open a new DB Manager Pro tab.",
         "view": "bks-db-manager",
         "placement": "newTabDropdown"
       },
