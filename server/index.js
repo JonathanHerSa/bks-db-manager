@@ -69,13 +69,105 @@ function resolvePassword(host, port, user, pass = '', name = '') {
   return '';
 }
 
+function normalizeMotor(raw) {
+  if (!raw) return 'mysql';
+  const l = raw.toLowerCase().trim();
+  if (l.includes('postgre') || l === 'pgsql' || l === 'postgres') return 'postgresql';
+  if (l === 'mariadb') return 'mariadb';
+  if (l === 'mysql') return 'mysql';
+  if (l === 'sqlite' || l === 'sqlite3') return 'sqlite';
+  if (l.includes('sqlserver') || l.includes('sqlsrv') || l.includes('mssql')) return 'sqlserver';
+  if (l.includes('cockroach')) return 'cockroachdb';
+  if (l.includes('redshift')) return 'redshift';
+  if (l.includes('oracle')) return 'oracle';
+  if (l.includes('redis') || l.includes('keydb') || l.includes('dragonfly')) return 'redis';
+  if (l.includes('mongo')) return 'mongodb';
+  if (l.includes('clickhouse')) return 'clickhouse';
+  if (l.includes('cassandra') || l.includes('scylla')) return 'cassandra';
+  if (l.includes('duckdb')) return 'duckdb';
+  if (l.includes('libsql') || l.includes('turso')) return 'libsql';
+  if (l.includes('surreal')) return 'surrealdb';
+  if (l.includes('snowflake')) return 'snowflake';
+  if (l.includes('bigquery')) return 'bigquery';
+  if (l.includes('firebird')) return 'firebird';
+  if (l.includes('tidb')) return 'tidb';
+  return l;
+}
+
+function getDefaultPort(motor) {
+  switch (motor) {
+    case 'postgresql': return 5432;
+    case 'mysql':
+    case 'mariadb': return 3306;
+    case 'sqlserver': return 1433;
+    case 'oracle': return 1521;
+    case 'redis': return 6379;
+    case 'mongodb': return 27017;
+    case 'clickhouse': return 8123;
+    case 'cockroachdb': return 26257;
+    case 'redshift': return 5439;
+    case 'cassandra': return 9042;
+    case 'surrealdb': return 8000;
+    case 'firebird': return 3050;
+    case 'tidb': return 4000;
+    case 'libsql': return 8080;
+    case 'sqlite':
+    case 'duckdb': return null;
+    default: return 3306;
+  }
+}
+
+function getDefaultUser(motor) {
+  switch (motor) {
+    case 'postgresql': return 'postgres';
+    case 'mysql':
+    case 'mariadb':
+    case 'tidb': return 'root';
+    case 'sqlserver': return 'sa';
+    case 'oracle': return 'system';
+    case 'redis': return 'default';
+    case 'mongodb': return 'admin';
+    case 'clickhouse': return 'default';
+    case 'cassandra': return 'cassandra';
+    case 'surrealdb': return 'root';
+    case 'firebird': return 'SYSDBA';
+    case 'sqlite':
+    case 'duckdb': return 'N/A';
+    default: return 'root';
+  }
+}
+
+function formatBytes(bytes, decimals = 1) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function isSqliteFile(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size === 0 && (filePath.endsWith('.sqlite') || filePath.endsWith('.sqlite3'))) return true;
+    if (stat.size < 16) return false;
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(16);
+    fs.readSync(fd, buf, 0, 16, 0);
+    fs.closeSync(fd);
+    return buf.toString('utf8').startsWith('SQLite format 3');
+  } catch {
+    return false;
+  }
+}
+
 async function getBeekeeperSavedConnections() {
   try {
     const dbPath = path.join(HOME, '.config', 'beekeeper-studio', 'app.db');
     if (!fs.existsSync(dbPath)) return [];
 
     const { stdout } = await execAsync(
-      `sqlite3 "${dbPath}" "SELECT id, name, connectionType, host, port, username, defaultDatabase FROM saved_connection;"`
+      `sqlite3 "${dbPath}" "SELECT id, name, connectionType, host, port, username, defaultDatabase, path, url FROM saved_connection;"`
     );
     if (!stdout.trim()) return [];
 
@@ -83,14 +175,24 @@ async function getBeekeeperSavedConnections() {
     const conns = [];
 
     for (const line of lines) {
-      const [id, name, connectionType, host, port, username, defaultDatabase] = line.split('|');
-      let motor = 'mysql';
-      if ((connectionType || '').toLowerCase().includes('postgre')) motor = 'pg';
+      const parts = line.split('|');
+      const id = parts[0];
+      const name = parts[1];
+      const rawType = parts[2];
+      const host = parts[3];
+      const port = parts[4];
+      const username = parts[5];
+      const defaultDatabase = parts[6];
+      const pathVal = parts[7] || '';
+      const urlVal = parts[8] || '';
 
-      const finalHost = host || '127.0.0.1';
-      const finalPort = parseInt(port) || (motor === 'pg' ? 5432 : 3306);
-      const finalUser = username || (motor === 'pg' ? 'postgres' : 'root');
-      const resolvedPass = resolvePassword(finalHost, finalPort, finalUser, '', name);
+      const motor = normalizeMotor(rawType);
+      const isFileDb = motor === 'sqlite' || motor === 'duckdb';
+
+      const finalHost = isFileDb ? (pathVal || 'Local File') : (host || '127.0.0.1');
+      const finalPort = isFileDb ? null : (parseInt(port) || getDefaultPort(motor));
+      const finalUser = isFileDb ? 'N/A' : (username || getDefaultUser(motor));
+      const resolvedPass = resolvePassword(finalHost, finalPort || 0, finalUser, '', name);
 
       conns.push({
         id: `bks-${id}`,
@@ -100,6 +202,8 @@ async function getBeekeeperSavedConnections() {
         port: finalPort,
         user: finalUser,
         defaultDatabase: defaultDatabase || '',
+        path: pathVal,
+        url: urlVal,
         password: resolvedPass,
         hasPassword: Boolean(resolvedPass),
         isBeekeeper: true
@@ -121,8 +225,10 @@ app.get('/api/conns', async (req, res) => {
     if (fs.existsSync(CONNS_FILE)) {
       const lines = fs.readFileSync(CONNS_FILE, 'utf-8').split('\n').filter(Boolean);
       lines.forEach((line, idx) => {
-        const [name, motor, host, port, user, pass] = line.split('|');
-        const finalPort = parseInt(port) || 3306;
+        const [name, motorRaw, host, port, user, pass] = line.split('|');
+        const motor = normalizeMotor(motorRaw);
+        const isFileDb = motor === 'sqlite' || motor === 'duckdb';
+        const finalPort = isFileDb ? null : (parseInt(port) || getDefaultPort(motor));
         const alreadyExists = bksConns.some(
           b => b.host === (host || '127.0.0.1') && b.port === finalPort && b.user === (user || 'root')
         );
@@ -130,10 +236,10 @@ app.get('/api/conns', async (req, res) => {
           customConns.push({
             id: `custom-${idx + 1}`,
             name: name || 'Unnamed',
-            motor: motor || 'mysql',
-            host: host || 'localhost',
+            motor,
+            host: host || (isFileDb ? 'Local File' : 'localhost'),
             port: finalPort,
-            user: user || 'root',
+            user: user || (isFileDb ? 'N/A' : 'root'),
             password: pass || '',
             hasPassword: Boolean(pass && pass.trim()),
             isBeekeeper: false
@@ -149,7 +255,79 @@ app.get('/api/conns', async (req, res) => {
   }
 });
 
+// Save connection directly into Beekeeper Studio's saved_connection table
+app.post('/api/conns/save', async (req, res) => {
+  const { name, motor, host, port, user, password, database, path: dbPath, url } = req.body;
+  const beekeeperDbPath = path.join(HOME, '.config', 'beekeeper-studio', 'app.db');
+  if (!fs.existsSync(beekeeperDbPath)) {
+    return res.status(404).json({ error: 'No se encontró la base de datos de Beekeeper Studio en ~/.config/beekeeper-studio/app.db' });
+  }
+
+  try {
+    const connectionType = normalizeMotor(motor);
+    const isFileDb = connectionType === 'sqlite' || connectionType === 'duckdb';
+    const connName = name || `${connectionType} - ${database || host || (isFileDb ? path.basename(dbPath || '') : 'Conexión')}`;
+
+    // Check if already exists in Beekeeper app.db
+    const checkSql = isFileDb
+      ? `SELECT id FROM saved_connection WHERE connectionType = '${connectionType}' AND path = '${(dbPath || '').replace(/'/g, "''")}' LIMIT 1;`
+      : `SELECT id FROM saved_connection WHERE connectionType = '${connectionType}' AND host = '${(host || '').replace(/'/g, "''")}' AND port = ${parseInt(port) || 0} AND defaultDatabase = '${(database || '').replace(/'/g, "''")}' LIMIT 1;`;
+
+    const { stdout: checkOut } = await execAsync(`sqlite3 "${beekeeperDbPath}" "${checkSql}"`);
+    if (checkOut.trim()) {
+      return res.json({ success: true, alreadyExists: true, message: 'Esta conexión ya existe guardada en Beekeeper Studio.' });
+    }
+
+    const safeName = connName.replace(/'/g, "''");
+    const safeHost = (host || '').replace(/'/g, "''");
+    const safePort = parseInt(port) || 0;
+    const safeUser = (user || '').replace(/'/g, "''");
+    const safePass = (password || '').replace(/'/g, "''");
+    const safeDb = (database || '').replace(/'/g, "''");
+    const safePath = (dbPath || '').replace(/'/g, "''");
+    const safeUrl = (url || '').replace(/'/g, "''");
+
+    const insertSql = `INSERT INTO saved_connection (
+      createdAt, updatedAt, version, connectionType, host, port, username, password, defaultDatabase, path, url, uniqueHash, name, rememberPassword
+    ) VALUES (
+      datetime('now'), datetime('now'), 1, '${connectionType}', '${safeHost}', ${safePort}, '${safeUser}', '${safePass}', '${safeDb}', '${safePath}', '${safeUrl}', 'DEPRECATED', '${safeName}', 1
+    );`;
+
+    await execAsync(`sqlite3 "${beekeeperDbPath}" "${insertSql}"`);
+
+    if (safePass) {
+      try {
+        const passFile = path.join(HOME, '.db_manager_passwords');
+        fs.appendFileSync(passFile, `\n${safeHost}:${safePort}:${safeUser}:${safePass}`);
+      } catch {}
+    }
+
+    res.json({ success: true, alreadyExists: false, message: '¡Conexión guardada exitosamente en Beekeeper Studio!' });
+  } catch (err) {
+    console.error('Error saving connection to Beekeeper:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3. Scan Docker containers (docker ps) for running database containers
+const DOCKER_ENGINES = [
+  { motor: 'mysql', label: 'MySQL', keywords: ['mysql', 'percona'], defaultPort: 3306, defaultUser: 'root' },
+  { motor: 'mariadb', label: 'MariaDB', keywords: ['mariadb'], defaultPort: 3306, defaultUser: 'root' },
+  { motor: 'tidb', label: 'TiDB', keywords: ['tidb', 'pingcap'], defaultPort: 4000, defaultUser: 'root' },
+  { motor: 'postgresql', label: 'PostgreSQL', keywords: ['postgres', 'timescale', 'postgis'], defaultPort: 5432, defaultUser: 'postgres' },
+  { motor: 'cockroachdb', label: 'CockroachDB', keywords: ['cockroach'], defaultPort: 26257, defaultUser: 'root' },
+  { motor: 'sqlserver', label: 'SQL Server', keywords: ['mssql', 'sqlserver', 'azure-sql'], defaultPort: 1433, defaultUser: 'sa' },
+  { motor: 'oracle', label: 'Oracle', keywords: ['oracle', 'gvenzl/oracle'], defaultPort: 1521, defaultUser: 'system' },
+  { motor: 'redis', label: 'Redis', keywords: ['redis', 'keydb', 'dragonfly'], defaultPort: 6379, defaultUser: 'default' },
+  { motor: 'mongodb', label: 'MongoDB', keywords: ['mongo', 'mongodb'], defaultPort: 27017, defaultUser: 'admin' },
+  { motor: 'clickhouse', label: 'ClickHouse', keywords: ['clickhouse'], defaultPort: 8123, defaultUser: 'default' },
+  { motor: 'cassandra', label: 'Cassandra', keywords: ['cassandra', 'scylla'], defaultPort: 9042, defaultUser: 'cassandra' },
+  { motor: 'surrealdb', label: 'SurrealDB', keywords: ['surrealdb', 'surreal'], defaultPort: 8000, defaultUser: 'root' },
+  { motor: 'firebird', label: 'Firebird', keywords: ['firebird'], defaultPort: 3050, defaultUser: 'SYSDBA' },
+  { motor: 'libsql', label: 'LibSQL', keywords: ['libsql', 'sqld'], defaultPort: 8080, defaultUser: 'admin' },
+  { motor: 'duckdb', label: 'DuckDB', keywords: ['duckdb'], defaultPort: null, defaultUser: 'admin' }
+];
+
 app.get('/api/docker', async (req, res) => {
   try {
     const { stdout } = await execAsync("docker ps --format '{{json .}}' 2>/dev/null || true");
@@ -159,26 +337,51 @@ app.get('/api/docker', async (req, res) => {
 
     const lines = stdout.trim().split('\n');
     const containers = [];
-    const dbKeywords = ['mysql', 'mariadb', 'postgres', 'mongo', 'redis', 'cockroach', 'clickhouse'];
 
     for (const line of lines) {
       try {
         const item = JSON.parse(line);
         const imageLower = (item.Image || '').toLowerCase();
         const nameLower = (item.Names || '').toLowerCase();
-        const isDb = dbKeywords.some(k => imageLower.includes(k) || nameLower.includes(k));
 
-        if (isDb) {
-          let motor = 'mysql';
-          if (imageLower.includes('postgres')) motor = 'pg';
-          else if (imageLower.includes('mongo')) motor = 'mongo';
-          else if (imageLower.includes('redis')) motor = 'redis';
+        const matchedRule = DOCKER_ENGINES.find(engine =>
+          engine.keywords.some(k => imageLower.includes(k) || nameLower.includes(k))
+        );
 
-          // Extract host port
+        if (matchedRule) {
+          const motor = matchedRule.motor;
           let hostPort = null;
-          const portMatch = (item.Ports || '').match(/0\.0\.0\.0:(\d+)->/);
+          let internalPort = matchedRule.defaultPort;
+
+          const portMatch = (item.Ports || '').match(/(?:0\.0\.0\.0|127\.0\.0\.1|:::|\[::\]):(\d+)->(\d+)/);
           if (portMatch) {
             hostPort = parseInt(portMatch[1]);
+            internalPort = parseInt(portMatch[2]);
+          } else {
+            const singlePortMatch = (item.Ports || '').match(/(?:0\.0\.0\.0|127\.0\.0\.1|:::|\[::\]):(\d+)/);
+            if (singlePortMatch) {
+              hostPort = parseInt(singlePortMatch[1]);
+            }
+          }
+
+          let connUrl = '';
+          const effectivePort = hostPort || internalPort;
+          if (motor === 'postgresql') {
+            connUrl = `postgresql://${matchedRule.defaultUser}@127.0.0.1:${effectivePort || 5432}/postgres`;
+          } else if (motor === 'mysql' || motor === 'mariadb' || motor === 'tidb') {
+            connUrl = `${motor}://${matchedRule.defaultUser}@127.0.0.1:${effectivePort || 3306}`;
+          } else if (motor === 'redis') {
+            connUrl = `redis://127.0.0.1:${effectivePort || 6379}/0`;
+          } else if (motor === 'mongodb') {
+            connUrl = `mongodb://127.0.0.1:${effectivePort || 27017}`;
+          } else if (motor === 'sqlserver') {
+            connUrl = `sqlserver://${matchedRule.defaultUser}@127.0.0.1:${effectivePort || 1433}`;
+          } else if (motor === 'clickhouse') {
+            connUrl = `http://127.0.0.1:${effectivePort || 8123}`;
+          } else if (motor === 'cockroachdb') {
+            connUrl = `postgresql://${matchedRule.defaultUser}@127.0.0.1:${effectivePort || 26257}/defaultdb?sslmode=disable`;
+          } else {
+            connUrl = `${motor}://${matchedRule.defaultUser}@127.0.0.1:${effectivePort || ''}`;
           }
 
           containers.push({
@@ -188,8 +391,11 @@ app.get('/api/docker', async (req, res) => {
             status: item.Status,
             ports: item.Ports,
             hostPort,
+            internalPort,
             motor,
-            suggestedUser: motor === 'mysql' ? 'root' : motor === 'pg' ? 'postgres' : 'root'
+            label: matchedRule.label,
+            suggestedUser: matchedRule.defaultUser,
+            connUrl
           });
         }
       } catch {
@@ -203,45 +409,19 @@ app.get('/api/docker', async (req, res) => {
   }
 });
 
-// 4. Scan local projects for .env files
+// 4. Scan local projects for databases (all types: SQLite, MySQL, Postgres, MSSQL, Mongo, Redis, ClickHouse, etc.)
 app.get('/api/discovery/projects', async (req, res) => {
-  const rootDir = req.query.path || path.join(HOME, 'Proyectos');
-  const projects = [];
-
-  function scanDir(currentDir, depth = 0) {
-    if (depth > 3) return;
-    try {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-      const hasEnv = entries.some(e => e.isFile() && e.name === '.env');
-
-      if (hasEnv) {
-        const envPath = path.join(currentDir, '.env');
-        const envContent = fs.readFileSync(envPath, 'utf-8');
-        const parsed = parseEnv(envContent);
-        if (parsed.DB_HOST || parsed.DATABASE_URL) {
-          projects.push({
-            name: path.basename(currentDir),
-            path: currentDir,
-            ...parsed
-          });
-        }
-      }
-
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const name = entry.name;
-          if (name.startsWith('.') || name === 'node_modules' || name === 'vendor' || name === 'dist' || name === 'target' || name === 'build') {
-            continue;
-          }
-          scanDir(path.join(currentDir, name), depth + 1);
-        }
-      }
-    } catch {
-      // ignore permission or unreadable folders
-    }
+  let rootDir = req.query.path || path.join(HOME, 'Proyectos');
+  if (rootDir.startsWith('~/')) {
+    rootDir = path.join(HOME, rootDir.slice(2));
+  } else if (rootDir === '~') {
+    rootDir = HOME;
   }
 
-  function parseEnv(content) {
+  const maxDepth = parseInt(req.query.depth) || 6;
+  const projects = [];
+
+  function parseEnv(content, currentDir) {
     const lines = content.split('\n');
     const dict = {};
     for (const line of lines) {
@@ -255,35 +435,384 @@ app.get('/api/discovery/projects', async (req, res) => {
       dict[key] = val;
     }
 
-    let motor = 'mysql';
-    const connVal = (dict.DB_CONNECTION || '').toLowerCase();
-    if (connVal.includes('pg') || connVal.includes('postgres')) motor = 'pg';
-    else if (connVal.includes('mongo')) motor = 'mongo';
+    const items = [];
 
-    return {
-      motor,
-      host: dict.DB_HOST || 'localhost',
-      port: parseInt(dict.DB_PORT) || (motor === 'pg' ? 5432 : 3306),
-      database: dict.DB_DATABASE || dict.DB_NAME || '',
-      username: dict.DB_USERNAME || dict.DB_USER || 'root',
-      hasPassword: Boolean(dict.DB_PASSWORD)
-    };
+    // Helper to extract database from standard URL
+    function parseDatabaseUrl(rawUrl) {
+      if (!rawUrl) return null;
+      try {
+        if (rawUrl.startsWith('sqlite:') || rawUrl.startsWith('file:')) {
+          let cleaned = rawUrl.replace(/^sqlite:\/\/|^file:\/\/|^sqlite:|^file:/, '');
+          cleaned = cleaned.split('?')[0];
+          const absPath = path.isAbsolute(cleaned) ? cleaned : path.resolve(currentDir, cleaned);
+          return {
+            motor: 'sqlite',
+            database: path.basename(absPath),
+            filePath: absPath,
+            host: 'Archivo Local',
+            port: null,
+            username: 'N/A',
+            hasPassword: false,
+            isLocalFile: true,
+            connUrl: `sqlite://${absPath}`
+          };
+        }
+
+        const u = new URL(rawUrl);
+        const protocol = u.protocol.replace(':', '').toLowerCase();
+        let motor = normalizeMotor(protocol);
+
+        const host = u.hostname || '127.0.0.1';
+        const port = parseInt(u.port) || getDefaultPort(motor);
+        const database = (u.pathname || '').replace(/^\//, '');
+        const username = u.username || getDefaultUser(motor);
+        const hasPassword = Boolean(u.password);
+
+        return {
+          motor,
+          host,
+          port,
+          database,
+          username,
+          hasPassword,
+          connUrl: rawUrl
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    // A. Check URL variables: DATABASE_URL, DB_URL, DIRECT_URL, MONGODB_URI, REDIS_URL
+    const urlVar = dict.DATABASE_URL || dict.DB_URL || dict.DIRECT_URL;
+    if (urlVar) {
+      const parsedUrl = parseDatabaseUrl(urlVar);
+      if (parsedUrl) items.push(parsedUrl);
+    }
+
+    // B. Check standard DB_CONNECTION / DB_CLIENT
+    const connVal = (dict.DB_CONNECTION || dict.DATABASE_CLIENT || dict.DB_CLIENT || dict.DATABASE_DIALECT || dict.DB_TYPE || '').toLowerCase();
+    if (connVal) {
+      const motor = normalizeMotor(connVal);
+      if (motor === 'sqlite') {
+        const dbPath = dict.DB_DATABASE || dict.SQLITE_DATABASE || dict.SQLITE_DB || 'database.sqlite';
+        if (dbPath !== ':memory:') {
+          const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(currentDir, dbPath);
+          if (!items.some(it => it.motor === 'sqlite' && it.filePath === absPath)) {
+            items.push({
+              motor: 'sqlite',
+              database: path.basename(absPath),
+              filePath: absPath,
+              host: 'Archivo Local',
+              port: null,
+              username: 'N/A',
+              hasPassword: false,
+              isLocalFile: true,
+              connUrl: `sqlite://${absPath}`
+            });
+          }
+        }
+      } else {
+        const host = dict.DB_HOST || dict.MYSQL_HOST || dict.POSTGRES_HOST || dict.PGHOST || dict.MSSQL_HOST || '127.0.0.1';
+        const database = dict.DB_DATABASE || dict.DB_NAME || dict.POSTGRES_DB || dict.MYSQL_DATABASE || dict.PGDATABASE || dict.MSSQL_DATABASE || '';
+        const username = dict.DB_USERNAME || dict.DB_USER || dict.POSTGRES_USER || dict.MYSQL_USER || dict.PGUSER || dict.MSSQL_USER || getDefaultUser(motor);
+        const port = parseInt(dict.DB_PORT || dict.POSTGRES_PORT || dict.PGPORT || dict.MSSQL_PORT) || getDefaultPort(motor);
+        const hasPassword = Boolean(dict.DB_PASSWORD || dict.POSTGRES_PASSWORD || dict.MYSQL_PASSWORD || dict.PGPASSWORD || dict.MSSQL_PASSWORD);
+
+        if (!items.some(it => it.motor === motor && it.database === database && it.host === host)) {
+          items.push({
+            motor,
+            host,
+            port,
+            database,
+            username,
+            hasPassword,
+            connUrl: `${motor}://${username}@${host}:${port}/${database}`
+          });
+        }
+      }
+    }
+
+    // C. Check for dedicated Postgres block if not already added
+    if ((dict.POSTGRES_DB || dict.PGDATABASE) && !items.some(it => it.motor === 'postgresql')) {
+      const host = dict.POSTGRES_HOST || dict.PGHOST || '127.0.0.1';
+      const port = parseInt(dict.POSTGRES_PORT || dict.PGPORT) || 5432;
+      const database = dict.POSTGRES_DB || dict.PGDATABASE || 'postgres';
+      const username = dict.POSTGRES_USER || dict.PGUSER || 'postgres';
+      const hasPassword = Boolean(dict.POSTGRES_PASSWORD || dict.PGPASSWORD);
+      items.push({
+        motor: 'postgresql',
+        host,
+        port,
+        database,
+        username,
+        hasPassword,
+        connUrl: `postgresql://${username}@${host}:${port}/${database}`
+      });
+    }
+
+    // D. Check for dedicated MySQL / MariaDB block if not already added
+    if ((dict.MYSQL_DATABASE || dict.MARIADB_DATABASE) && !items.some(it => it.motor === 'mysql' || it.motor === 'mariadb')) {
+      const motor = dict.MARIADB_DATABASE ? 'mariadb' : 'mysql';
+      const host = dict.MYSQL_HOST || dict.MARIADB_HOST || '127.0.0.1';
+      const port = parseInt(dict.MYSQL_PORT || dict.MARIADB_PORT) || 3306;
+      const database = dict.MYSQL_DATABASE || dict.MARIADB_DATABASE || '';
+      const username = dict.MYSQL_USER || dict.MARIADB_USER || 'root';
+      const hasPassword = Boolean(dict.MYSQL_PASSWORD || dict.MARIADB_PASSWORD);
+      items.push({
+        motor,
+        host,
+        port,
+        database,
+        username,
+        hasPassword,
+        connUrl: `${motor}://${username}@${host}:${port}/${database}`
+      });
+    }
+
+    // E. Check for MongoDB if configured
+    const mongoUri = dict.MONGODB_URI || dict.MONGO_URL;
+    if (mongoUri) {
+      const parsed = parseDatabaseUrl(mongoUri);
+      if (parsed && !items.some(it => it.motor === 'mongodb')) items.push(parsed);
+    } else if (dict.MONGO_DATABASE || dict.MONGO_HOST) {
+      if (!items.some(it => it.motor === 'mongodb')) {
+        const host = dict.MONGO_HOST || '127.0.0.1';
+        const port = parseInt(dict.MONGO_PORT) || 27017;
+        const database = dict.MONGO_DATABASE || 'admin';
+        const username = dict.MONGO_USER || dict.MONGO_INITDB_ROOT_USERNAME || 'admin';
+        const hasPassword = Boolean(dict.MONGO_PASSWORD || dict.MONGO_INITDB_ROOT_PASSWORD);
+        items.push({
+          motor: 'mongodb',
+          host,
+          port,
+          database,
+          username,
+          hasPassword,
+          connUrl: `mongodb://${username}@${host}:${port}/${database}`
+        });
+      }
+    }
+
+    // F. Check for Redis cache/database if configured
+    const redisUri = dict.REDIS_URL;
+    if (redisUri) {
+      const parsed = parseDatabaseUrl(redisUri);
+      if (parsed && !items.some(it => it.motor === 'redis')) items.push(parsed);
+    } else if (dict.REDIS_HOST && !items.some(it => it.motor === 'redis')) {
+      const host = dict.REDIS_HOST || '127.0.0.1';
+      const port = parseInt(dict.REDIS_PORT) || 6379;
+      const database = dict.REDIS_DB || '0';
+      const hasPassword = Boolean(dict.REDIS_PASSWORD && dict.REDIS_PASSWORD !== 'null');
+      items.push({
+        motor: 'redis',
+        host,
+        port,
+        database: `DB ${database}`,
+        username: 'default',
+        hasPassword,
+        connUrl: `redis://${host}:${port}/${database}`
+      });
+    }
+
+    // G. Check for ClickHouse
+    if ((dict.CLICKHOUSE_DB || dict.CLICKHOUSE_HOST || dict.CLICKHOUSE_URL) && !items.some(it => it.motor === 'clickhouse')) {
+      if (dict.CLICKHOUSE_URL) {
+        const parsed = parseDatabaseUrl(dict.CLICKHOUSE_URL);
+        if (parsed) items.push(parsed);
+      } else {
+        const host = dict.CLICKHOUSE_HOST || '127.0.0.1';
+        const port = parseInt(dict.CLICKHOUSE_PORT) || 8123;
+        const database = dict.CLICKHOUSE_DB || 'default';
+        const username = dict.CLICKHOUSE_USER || 'default';
+        const hasPassword = Boolean(dict.CLICKHOUSE_PASSWORD);
+        items.push({
+          motor: 'clickhouse',
+          host,
+          port,
+          database,
+          username,
+          hasPassword,
+          connUrl: `http://${host}:${port}`
+        });
+      }
+    }
+
+    // H. Relational database from DB_HOST / DB_DATABASE / DB_NAME (if not already captured by URL)
+    const relDbName = dict.DB_DATABASE || dict.DB_NAME;
+    if (relDbName || dict.DB_HOST) {
+      const host = dict.DB_HOST || '127.0.0.1';
+      const port = parseInt(dict.DB_PORT) || 3306;
+      let motor = 'mysql';
+      if (port === 5432) motor = 'postgresql';
+      else if (port === 1433) motor = 'sqlserver';
+      else if (port === 27017) motor = 'mongodb';
+      else if (port === 6379) motor = 'redis';
+      else if (port === 8123 || port === 9000) motor = 'clickhouse';
+      else if (port === 1521) motor = 'oracle';
+      else if (port === 9042) motor = 'cassandra';
+
+      const alreadyPresent = items.some(it =>
+        it.motor === motor &&
+        (it.database === (relDbName || '') || (relDbName && it.database === relDbName)) &&
+        it.motor !== 'redis'
+      );
+
+      if (!alreadyPresent && relDbName) {
+        items.unshift({
+          motor,
+          host,
+          port,
+          database: relDbName,
+          username: dict.DB_USERNAME || dict.DB_USER || getDefaultUser(motor),
+          hasPassword: Boolean(dict.DB_PASSWORD),
+          connUrl: `${motor}://${dict.DB_USERNAME || dict.DB_USER || getDefaultUser(motor)}@${host}:${port}/${relDbName}`
+        });
+      }
+    }
+
+    return items;
+  }
+
+  function scanDir(currentDir, depth = 0) {
+    if (depth > maxDepth) return;
+    try {
+      if (!fs.existsSync(currentDir)) return;
+      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+      const baseName = path.basename(currentDir);
+      let displayName = baseName;
+      if (['back', 'front', 'api', 'server', 'app'].includes(baseName.toLowerCase())) {
+        const parent = path.basename(path.dirname(currentDir));
+        displayName = `${parent}/${baseName}`;
+      }
+
+      // 1. Scan for Environment files (.env, .env.local, .env.development, .env.docker)
+      const envFiles = entries.filter(e => e.isFile() && (
+        e.name === '.env' ||
+        e.name === '.env.local' ||
+        e.name === '.env.development' ||
+        e.name === '.env.docker' ||
+        e.name === '.env.production'
+      ));
+
+      for (const envFile of envFiles) {
+        try {
+          const envPath = path.join(currentDir, envFile.name);
+          const envContent = fs.readFileSync(envPath, 'utf-8');
+          const dbs = parseEnv(envContent, currentDir);
+
+          for (const db of dbs) {
+            if (db.database || (db.host && db.host !== '127.0.0.1' && db.host !== 'localhost') || db.isLocalFile) {
+              const uniqueKey = `${envPath}:${db.motor}:${db.database}:${db.port || db.filePath || ''}`;
+              if (!projects.some(p => p.uniqueKey === uniqueKey)) {
+                // For local sqlite files, add file size if exists
+                let fileSize = '';
+                if (db.filePath && fs.existsSync(db.filePath)) {
+                  try {
+                    fileSize = formatBytes(fs.statSync(db.filePath).size);
+                  } catch {}
+                }
+
+                projects.push({
+                  uniqueKey,
+                  name: displayName,
+                  fileName: envFile.name,
+                  path: envPath,
+                  fileSize: fileSize || db.fileSize || '',
+                  ...db
+                });
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // 2. Scan directly for SQLite / DuckDB database files (.sqlite, .sqlite3, .db3, .duckdb, and valid .db files)
+      const directDbFiles = entries.filter(e => e.isFile() && (
+        e.name.endsWith('.sqlite') ||
+        e.name.endsWith('.sqlite3') ||
+        e.name.endsWith('.db3') ||
+        e.name.endsWith('.s3db') ||
+        e.name.endsWith('.duckdb') ||
+        (e.name.endsWith('.db') && !['app.db', 'package.db', 'thumbs.db'].includes(e.name.toLowerCase()))
+      ));
+
+      for (const file of directDbFiles) {
+        try {
+          const filePath = path.join(currentDir, file.name);
+          const isDuck = file.name.endsWith('.duckdb');
+          if (isDuck || isSqliteFile(filePath)) {
+            const motor = isDuck ? 'duckdb' : 'sqlite';
+            const uniqueKey = `file:${filePath}`;
+            if (!projects.some(p => p.filePath === filePath || p.uniqueKey === uniqueKey)) {
+              let fileSize = '';
+              try {
+                fileSize = formatBytes(fs.statSync(filePath).size);
+              } catch {}
+
+              projects.push({
+                uniqueKey,
+                name: displayName,
+                fileName: file.name,
+                path: filePath,
+                filePath,
+                fileSize,
+                motor,
+                database: file.name,
+                host: 'Archivo Local',
+                port: null,
+                username: 'N/A',
+                hasPassword: false,
+                isLocalFile: true,
+                connUrl: `${motor}://${filePath}`
+              });
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Recurse into subdirectories
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const name = entry.name;
+          if (
+            name.startsWith('.') ||
+            name === 'node_modules' ||
+            name === 'vendor' ||
+            name === 'dist' ||
+            name === 'target' ||
+            name === 'build' ||
+            name === '.next' ||
+            name === 'storage' ||
+            name === '.cache'
+          ) {
+            continue;
+          }
+          scanDir(path.join(currentDir, name), depth + 1);
+        }
+      }
+    } catch {
+      // ignore unreadable/permission folders
+    }
   }
 
   scanDir(rootDir);
-  res.json({ projects });
+  res.json({ projects, scannedDir: rootDir, maxDepth });
 });
 
 // 5. Query databases list for a connection
 app.post('/api/databases', async (req, res) => {
   let { motor = 'mysql', host, port, user, pass, name } = req.body;
+  const normMotor = normalizeMotor(motor);
+  const isMysql = normMotor === 'mysql' || normMotor === 'mariadb' || normMotor === 'tidb';
+  const isPg = normMotor === 'postgresql' || normMotor === 'cockroachdb' || motor === 'pg';
   const rawPass = resolvePassword(host, port, user, pass, name);
   const safePass = rawPass.replace(/'/g, "'\\''");
   try {
     let cmd = '';
-    if (motor === 'mysql') {
+    if (isMysql) {
       cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} -N -s -e 'SHOW DATABASES;' 2>/dev/null`;
-    } else if (motor === 'pg') {
+    } else if (isPg) {
       cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -t -c "SELECT datname FROM pg_database WHERE datistemplate = false;" postgres 2>/dev/null`;
     }
 
@@ -301,13 +830,16 @@ app.post('/api/databases', async (req, res) => {
 // 6. Query tables list for a database
 app.post('/api/tables', async (req, res) => {
   let { motor = 'mysql', host, port, user, pass, database, name } = req.body;
+  const normMotor = normalizeMotor(motor);
+  const isMysql = normMotor === 'mysql' || normMotor === 'mariadb' || normMotor === 'tidb';
+  const isPg = normMotor === 'postgresql' || normMotor === 'cockroachdb' || motor === 'pg';
   const rawPass = resolvePassword(host, port, user, pass, name);
   const safePass = rawPass.replace(/'/g, "'\\''");
   try {
     let cmd = '';
-    if (motor === 'mysql') {
+    if (isMysql) {
       cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} ${database} -N -s -e 'SHOW TABLES;' 2>/dev/null`;
-    } else if (motor === 'pg') {
+    } else if (isPg) {
       cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -d ${database} -t -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';" 2>/dev/null`;
     }
 
@@ -324,13 +856,16 @@ app.post('/api/tables', async (req, res) => {
 // 6.5 Query database size & stats
 app.post('/api/database/info', async (req, res) => {
   let { motor = 'mysql', host, port, user, pass, database, name } = req.body;
+  const normMotor = normalizeMotor(motor);
+  const isMysql = normMotor === 'mysql' || normMotor === 'mariadb' || normMotor === 'tidb';
+  const isPg = normMotor === 'postgresql' || normMotor === 'cockroachdb' || motor === 'pg';
   const rawPass = resolvePassword(host, port, user, pass, name);
   const safePass = rawPass.replace(/'/g, "'\\''");
   try {
     let cmd = '';
-    if (motor === 'mysql') {
+    if (isMysql) {
       cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} -N -s -e "SELECT ROUND(SUM(data_length + index_length) / (1024 * 1024), 2) AS mb, COUNT(*) AS tables FROM information_schema.TABLES WHERE table_schema='${database}';" 2>/dev/null`;
-    } else if (motor === 'pg') {
+    } else if (isPg) {
       cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -d ${database} -t -c "SELECT ROUND(pg_database_size('${database}') / (1024.0 * 1024.0), 2);" 2>/dev/null`;
     }
 

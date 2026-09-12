@@ -294,7 +294,7 @@ async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
     return await getDatabasesList({
       motor: conn.motor,
       host: conn.host,
-      port: conn.port,
+      port: conn.port || 3306,
       user: conn.user,
       pass: conn.password
     });
@@ -353,7 +353,7 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
       const cols = await inspectSchema({
         motor: conn.motor,
         host: conn.host,
-        port: conn.port,
+        port: conn.port || 3306,
         user: conn.user,
         pass: conn.password,
         database: db,

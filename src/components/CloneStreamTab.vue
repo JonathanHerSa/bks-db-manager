@@ -653,7 +653,7 @@ async function onSourceConnChange() {
   if (selectedSourceConn.value !== 'custom') {
     const c = selectedSourceConn.value as SavedConnection;
     source.value.host = c.host;
-    source.value.port = c.port;
+    source.value.port = c.port || 3306;
     source.value.user = c.user;
     source.value.pass = c.password || '';
     await loadSourceDbs();
@@ -664,7 +664,7 @@ async function onDestConnChange() {
   if (selectedDestConn.value !== 'custom') {
     const c = selectedDestConn.value as SavedConnection;
     dest.value.host = c.host;
-    dest.value.port = c.port;
+    dest.value.port = c.port || 3306;
     dest.value.user = c.user;
     dest.value.pass = c.password || '';
     await loadDestDbs();

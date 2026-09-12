@@ -11,12 +11,14 @@ export interface SavedConnection {
   name: string;
   motor: string;
   host: string;
-  port: number;
+  port: number | null;
   user: string;
   password?: string;
   hasPassword: boolean;
   isBeekeeper?: boolean;
   defaultDatabase?: string;
+  path?: string;
+  url?: string;
 }
 
 export interface DockerContainer {
@@ -26,19 +28,51 @@ export interface DockerContainer {
   status: string;
   ports: string;
   hostPort: number | null;
+  internalPort?: number | null;
   motor: string;
+  label?: string;
   suggestedUser: string;
+  connUrl?: string;
 }
 
 export interface DiscoveredProject {
+  uniqueKey?: string;
   name: string;
+  fileName?: string;
   path: string;
+  filePath?: string;
+  fileSize?: string;
   motor: string;
   host: string;
-  port: number;
+  port: number | null;
   database: string;
   username: string;
   hasPassword: boolean;
+  isLocalFile?: boolean;
+  connUrl?: string;
+}
+
+export async function saveConnectionToBeekeeper(params: {
+  name: string;
+  motor: string;
+  host?: string;
+  port?: number | null;
+  user?: string;
+  password?: string;
+  database?: string;
+  path?: string;
+  url?: string;
+}): Promise<{ success: boolean; alreadyExists?: boolean; message: string }> {
+  try {
+    const res = await fetch(`${COMPANION_URL}/api/conns/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Error al conectar con el daemon companion' };
+  }
 }
 
 export async function checkCompanionStatus(): Promise<CompanionStatus | null> {
@@ -73,9 +107,16 @@ export async function getDockerContainers(): Promise<DockerContainer[]> {
   }
 }
 
-export async function getDiscoveredProjects(): Promise<DiscoveredProject[]> {
+export async function getDiscoveredProjects(params?: {
+  path?: string;
+  depth?: number;
+}): Promise<DiscoveredProject[]> {
   try {
-    const res = await fetch(`${COMPANION_URL}/api/discovery/projects`);
+    const q = new URLSearchParams();
+    if (params?.path) q.set('path', params.path);
+    if (params?.depth) q.set('depth', String(params.depth));
+    const url = `${COMPANION_URL}/api/discovery/projects${q.toString() ? '?' + q.toString() : ''}`;
+    const res = await fetch(url);
     const data = await res.json();
     return data.projects || [];
   } catch (err) {

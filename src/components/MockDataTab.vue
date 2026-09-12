@@ -181,7 +181,7 @@ async function loadTables() {
   }
   if (tables.value.length > 0 && (!selectedTable.value || !tables.value.some(t => t.name === selectedTable.value))) {
     selectedTable.value = tables.value[0].name;
-    onTableSelect();
+    await onTableSelect();
   }
 }
 

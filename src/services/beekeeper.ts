@@ -126,9 +126,25 @@ export async function fetchTablesForDatabase(databaseName?: string): Promise<Tab
 
 export async function fetchColumns(tableName: string, schema?: string): Promise<ColumnInfo[]> {
   try {
-    return await getColumns(tableName, schema);
+    const cols = await getColumns(tableName, schema);
+    if (Array.isArray(cols) && cols.length > 0) return cols;
+    if (!schema) return cols || [];
   } catch (err) {
-    console.warn(`Error fetching columns for ${tableName}:`, err);
+    console.warn(`Error fetching columns for ${tableName} via SDK, falling back to SQL:`, err);
+  }
+
+  if (!schema) return [];
+
+  try {
+    const q = `SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${schema}' AND TABLE_NAME = '${tableName}' ORDER BY ORDINAL_POSITION ASC;`;
+    const res = await runQuery(q);
+    const rows = res?.results?.[0]?.rows || [];
+    return rows.map((r: any) => ({
+      name: String(r.COLUMN_NAME || r.column_name || Object.values(r)[0]),
+      type: String(r.COLUMN_TYPE || r.column_type || Object.values(r)[1] || '')
+    }));
+  } catch (err) {
+    console.warn(`Error fetching columns for ${tableName} via SQL fallback:`, err);
     return [];
   }
 }
