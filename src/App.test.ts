@@ -105,7 +105,7 @@ describe('App', () => {
 
   it('switches to the Diccionario de Datos tab when clicked', async () => {
     await mountApp()
-    const tabBtn = wrapper!.findAll('button').find((b) => b.text().includes('Diccionario de Datos & ERD'))
+    const tabBtn = wrapper!.findAll('button').find((b) => b.text().includes('Diccionario de Datos'))
     await tabBtn!.trigger('click')
     await flushPromises()
     expect(wrapper!.text()).toContain('DataDictionaryTab stub')

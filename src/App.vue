@@ -98,7 +98,7 @@ const tabs = [
   { id: 'diff' as TabType, label: 'Schema Diff & Migraciones', icon: GitCompare },
   { id: 'discovery' as TabType, label: 'Auto-Discovery (Docker & .env)', icon: Container },
   { id: 'mock' as TabType, label: 'Mock Data Generator', icon: Sparkles },
-  { id: 'docs' as TabType, label: 'Diccionario de Datos & ERD', icon: BookOpen }
+  { id: 'docs' as TabType, label: 'Diccionario de Datos', icon: BookOpen }
 ];
 
 const currentConn = ref<ConnectionData | null>(null);

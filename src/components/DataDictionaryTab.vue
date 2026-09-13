@@ -5,10 +5,10 @@
       <div>
         <div class="flex items-center gap-2">
           <BookOpen class="w-5 h-5 text-sky-400" />
-          <h2 class="text-base font-semibold text-white">Diccionario de Datos & Diagrama ER (Mermaid)</h2>
+          <h2 class="text-base font-semibold text-white">Diccionario de Datos</h2>
         </div>
         <p class="text-xs text-slate-400 mt-1">
-          Documentación técnica viva, catálogo de tablas, tipos de columnas, relaciones de claves foráneas y exportación de diagramas ERD en sintaxis Mermaid o Markdown.
+          Documentación técnica viva, catálogo de tablas, tipos de columnas, relaciones de claves foráneas y exportación en Markdown.
         </p>
       </div>
 
@@ -73,14 +73,6 @@
       <div class="flex items-center justify-between border-b border-white/[0.08] pb-2">
         <div class="flex items-center gap-1.5">
           <button
-            @click="activeView = 'erd'"
-            :class="activeView === 'erd' ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border-white/[0.05]'"
-            class="px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition cursor-pointer"
-          >
-            <GitFork class="w-3.5 h-3.5 text-sky-400" />
-            <span>Diagrama ERD (Mermaid)</span>
-          </button>
-          <button
             @click="activeView = 'dictionary'"
             :class="activeView === 'dictionary' ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border-white/[0.05]'"
             class="px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition cursor-pointer"
@@ -111,49 +103,8 @@
         </div>
       </div>
 
-      <!-- VIEW 1: MERMAID ERD -->
-      <div v-if="activeView === 'erd'" class="space-y-3">
-        <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-3 shadow-sm">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-                Código Mermaid ERD
-              </span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">
-                erDiagram
-              </span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                @click="copyMermaid"
-                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-              >
-                <Check v-if="mermaidCopied" class="w-3.5 h-3.5 text-emerald-400" />
-                <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
-                <span>{{ mermaidCopied ? '¡Copiado!' : 'Copiar Mermaid' }}</span>
-              </button>
-              <button
-                @click="exportMermaidFile"
-                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-              >
-                <Download class="w-3.5 h-3.5 text-slate-400" />
-                <span>Guardar .mmd</span>
-              </button>
-            </div>
-          </div>
-
-          <p class="text-[11px] text-slate-400">
-            Puedes pegar este bloque en Notion, GitHub Markdown, Obsidian o en
-            <a href="https://mermaid.live" target="_blank" class="text-sky-400 hover:underline">mermaid.live</a>
-            para renderizar el diagrama gráfico interactivo.
-          </p>
-
-          <pre class="p-4 rounded-lg bg-slate-950 text-sky-300 font-mono text-xs overflow-x-auto border border-white/[0.06] max-h-[460px] leading-relaxed"><code>{{ mermaidCode }}</code></pre>
-        </div>
-      </div>
-
-      <!-- VIEW 2: INTERACTIVE DATA DICTIONARY -->
-      <div v-else-if="activeView === 'dictionary'" class="space-y-3">
+      <!-- VIEW 1: INTERACTIVE DATA DICTIONARY -->
+      <div v-if="activeView === 'dictionary'" class="space-y-3">
         <!-- Search filter input -->
         <div class="flex items-center gap-3">
           <input
@@ -300,7 +251,6 @@ import {
   BookOpen,
   RefreshCw,
   Database,
-  GitFork,
   Table,
   FileText,
   Copy,
@@ -339,10 +289,9 @@ const selectedDb = ref('');
 const loading = ref(false);
 const progressMessage = ref('');
 const tablesData = ref<TableDocData[]>([]);
-const activeView = ref<'erd' | 'dictionary' | 'markdown'>('erd');
+const activeView = ref<'dictionary' | 'markdown'>('dictionary');
 const tableFilter = ref('');
 
-const mermaidCopied = ref(false);
 const mdCopied = ref(false);
 
 const filteredTables = computed(() => {
@@ -359,10 +308,6 @@ const totalFkCount = computed(() =>
   tablesData.value.reduce((acc, t) => acc + t.foreignKeys.length, 0)
 );
 
-function sanitizeMermaidName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, '_');
-}
-
 function isColPk(tbl: TableDocData, colName: string): boolean {
   const cn = colName.toLowerCase();
   return cn === 'id' || cn === `${tbl.name.toLowerCase()}_id` || cn === `${tbl.name.toLowerCase()}id`;
@@ -371,44 +316,6 @@ function isColPk(tbl: TableDocData, colName: string): boolean {
 function getColFk(tbl: TableDocData, colName: string): ForeignKeyInfo | undefined {
   return tbl.foreignKeys.find((k) => k.columnName === colName);
 }
-
-const mermaidCode = computed(() => {
-  if (tablesData.value.length === 0) return '';
-  const lines: string[] = ['erDiagram'];
-
-  // Table structures
-  for (const tbl of tablesData.value) {
-    const safeTbl = sanitizeMermaidName(tbl.name);
-    lines.push(`    ${safeTbl} {`);
-    for (const col of tbl.columns) {
-      const safeCol = sanitizeMermaidName(col.name);
-      const safeType = sanitizeMermaidName(col.type ? col.type.split('(')[0] : 'string');
-      let extra = '';
-      if (isColPk(tbl, col.name)) extra = ' PK';
-      else if (getColFk(tbl, col.name)) extra = ' FK';
-      lines.push(`        ${safeType} ${safeCol}${extra}`);
-    }
-    lines.push('    }');
-  }
-
-  lines.push('');
-
-  // Relationships
-  const seenRelations = new Set<string>();
-  for (const tbl of tablesData.value) {
-    const safeSource = sanitizeMermaidName(tbl.name);
-    for (const fk of tbl.foreignKeys) {
-      const safeTarget = sanitizeMermaidName(fk.referencedTable);
-      const relKey = `${safeTarget}_to_${safeSource}_${fk.columnName}`;
-      if (!seenRelations.has(relKey)) {
-        seenRelations.add(relKey);
-        lines.push(`    ${safeTarget} ||--o{ ${safeSource} : "${fk.columnName}"`);
-      }
-    }
-  }
-
-  return lines.join('\n');
-});
 
 const markdownDoc = computed(() => {
   if (tablesData.value.length === 0) return '';
@@ -423,13 +330,6 @@ const markdownDoc = computed(() => {
     `- **Total de Tablas:** ${tablesData.value.length}`,
     `- **Total de Columnas:** ${totalColumnsCount.value}`,
     `- **Total de Relaciones (FKs):** ${totalFkCount.value}`,
-    ``,
-    `---`,
-    ``,
-    `## 🗺️ Diagrama Entidad-Relación (Mermaid)`,
-    `\`\`\`mermaid`,
-    mermaidCode.value,
-    `\`\`\``,
     ``,
     `---`,
     ``,
@@ -508,27 +408,6 @@ async function loadDictionary() {
   }
 }
 
-async function copyMermaid() {
-  if (!mermaidCode.value) return;
-  const ok = await copyToSystemClipboard(mermaidCode.value);
-  if (ok) {
-    mermaidCopied.value = true;
-    setTimeout(() => {
-      mermaidCopied.value = false;
-    }, 2000);
-  }
-}
-
-async function exportMermaidFile() {
-  if (!mermaidCode.value) return;
-  const fileName = `erd_${selectedDb.value || 'schema'}.mmd`;
-  const saved = await exportToFile(mermaidCode.value, fileName, [
-    { name: 'Mermaid Diagram (*.mmd)', extensions: ['mmd', 'txt'] }
-  ]);
-  if (saved) {
-    showNotification(`Diagrama ${fileName} exportado con éxito.`, 'success');
-  }
-}
 
 async function copyMarkdown() {
   if (!markdownDoc.value) return;

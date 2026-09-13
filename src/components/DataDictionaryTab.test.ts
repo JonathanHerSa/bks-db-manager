@@ -104,47 +104,33 @@ describe('DataDictionaryTab', () => {
     expect(w.text()).toContain('1')
   })
 
-  it('generates Mermaid ERD code including entities, types, and relations', async () => {
+  it('renders interactive table dictionary by default with PK and FK indicators', async () => {
     const w = await mountTab()
-    const mermaidPre = w.find('pre')
-    expect(mermaidPre.exists()).toBe(true)
-    const code = mermaidPre.text()
-    expect(code).toContain('erDiagram')
-    expect(code).toContain('users {')
-    expect(code).toContain('orders {')
-    expect(code).toContain('users ||--o{ orders : "user_id"')
+    expect(w.text()).toContain('Mostrando 2 de 2 tablas')
+    expect(w.text()).toContain('PK (Clave Primaria)')
+    expect(w.text()).toContain('FK ➔ users.id')
   })
 
-  it('switches between ERD, Dictionary, and Markdown views', async () => {
+  it('switches between Dictionary and Markdown views', async () => {
     const w = await mountTab()
-    const buttons = w.findAll('button')
+    // Find "Documento Markdown" button
+    const mdBtn = w.findAll('button').find((b) => b.text().includes('Documento Markdown'))
+    expect(mdBtn?.exists()).toBe(true)
+    await mdBtn?.trigger('click')
+    await flushPromises()
 
-    // Find "Diccionario de Tablas" button
-    const dictBtn = buttons.find((b) => b.text().includes('Diccionario de Tablas'))
+    const pre = w.find('pre')
+    expect(pre.exists()).toBe(true)
+    expect(pre.text()).toContain('# 📖 Diccionario de Datos: `ecommerce_db`')
+    expect(pre.text()).not.toContain('erDiagram')
+
+    // Find "Diccionario de Tablas" button to switch back
+    const dictBtn = w.findAll('button').find((b) => b.text().includes('Diccionario de Tablas'))
     expect(dictBtn?.exists()).toBe(true)
     await dictBtn?.trigger('click')
     await flushPromises()
 
     expect(w.text()).toContain('Mostrando 2 de 2 tablas')
-    expect(w.text()).toContain('PK (Clave Primaria)')
-    expect(w.text()).toContain('FK ➔ users.id')
-
-    // Find "Documento Markdown" button
-    const mdBtn = w.findAll('button').find((b) => b.text().includes('Documento Markdown'))
-    await mdBtn?.trigger('click')
-    await flushPromises()
-
-    expect(w.find('pre').text()).toContain('# 📖 Diccionario de Datos: `ecommerce_db`')
-  })
-
-  it('copies Mermaid code to clipboard when "Copiar Mermaid" is clicked', async () => {
-    const w = await mountTab()
-    const copyBtn = w.findAll('button').find((b) => b.text().includes('Copiar Mermaid'))
-    expect(copyBtn?.exists()).toBe(true)
-    await copyBtn?.trigger('click')
-    await flushPromises()
-
-    expect(copyToSystemClipboard).toHaveBeenCalledWith(expect.stringContaining('erDiagram'))
   })
 
   it('exports documentation using exportToFile', async () => {
@@ -164,11 +150,6 @@ describe('DataDictionaryTab', () => {
 
   it('calls openTableInBeekeeper when "Ver en Beekeeper" is clicked', async () => {
     const w = await mountTab()
-    // Switch to dictionary view
-    const dictBtn = w.findAll('button').find((b) => b.text().includes('Diccionario de Tablas'))
-    await dictBtn?.trigger('click')
-    await flushPromises()
-
     const openBtn = w.findAll('button').find((b) => b.text().includes('Ver en Beekeeper'))
     expect(openBtn?.exists()).toBe(true)
     await openBtn?.trigger('click')
