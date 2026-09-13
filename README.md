@@ -11,28 +11,39 @@
 
 ## ✨ Características Principales
 
-1. **🔄 Clonado Directo en Vivo (Stream A ➔ B):**
+1. **📸 Snapshots & Backups Inteligentes (1-Click):**
+   * Respaldos comprimidos al vuelo con **Zstandard (`zstd -3`)** o **Gzip** de alta velocidad.
+   * **Motor Híbrido:** Usa volcado directo por pipes si el daemon está activo, o volcado nativo desde el navegador con `CompressionStream` si está offline.
+   * Explorador local de snapshots con fecha, tamaño y motor, más restauración asistida con modal de confirmación y protección anti path-traversal.
+
+2. **🔄 Clonado Directo en Vivo (Stream A ➔ B):**
    * Transfiere bases de datos completas entre servidores (Producción/Staging ➔ Local/Docker) en tiempo real mediante *pipes*, sin guardar archivos temporales en disco.
    * **Sanitización automática:** Remueve sentencias conflictivas (`DEFINER`, `USE`, `CREATE DATABASE`, `SQL_LOG_BIN`).
-   * **Auto-Creación:** Crea la base de datos destino si no existe (`CREATE DATABASE IF NOT EXISTS`).
+   * **Filtro de tablas y Data Masking:** Excluye tablas de telemetría y ofusca emails y datos sensibles al vuelo.
 
-2. **🛡️ Filtro de Tablas & Data Masking:**
-   * Selector interactivo de tablas con botón de un clic para **excluir tablas pesadas de logs / telemetría** (`pulse_*`, `telescope_*`, `audit_*`, `sessions`).
-   * **Data Masking (Ofuscación al vuelo):** Enmascara automáticamente correos electrónicos y datos sensibles durante el streaming.
+3. **⚖️ Schema Diff V2 Multi-Motor & Migraciones:**
+   * Soporte multi-motor para **MySQL / MariaDB** y **PostgreSQL**.
+   * Detección de tablas faltantes, columnas faltantes, discrepancias de tipo, índices y claves foráneas.
+   * **Exportador Dual:** Genera script DDL nativo y código de migración de **Laravel** (`Blueprint` con métodos `up()` y `down()`). Botón para abrir directamente en el editor SQL de Beekeeper Studio o guardar como `.sql` / `.php`.
 
-3. **🐳 Auto-Discovery (Docker & Proyectos Locales):**
-   * **Escaneo de Docker:** Detecta contenedores activos (`docker ps`) de MySQL, Postgres, MongoDB o Redis con sus puertos mapeados en el host.
-   * **Escaneo de `.env`:** Detecta proyectos locales (Laravel, NestJS, Next.js, etc.) y extrae credenciales de base de datos listas para usar.
+4. **🩺 Auditor de Salud & Rendimiento (Health Auditor):**
+   * **Puntaje Global de Salud (0 - 100)** con semáforo y penalizaciones configuradas.
+   * **Tablas sin Primary Key:** Alerta de tablas que degradan la replicación por filas (RBR) y rendimiento.
+   * **Índices Redundantes:** Detecta índices duplicados exactos y prefijos redundantes que ralentizan escrituras `INSERT`/`UPDATE`.
+   * **Desglose de Almacenamiento:** Análisis de tamaño de datos vs índices por tabla.
+   * **Monitor de Procesos en Vivo:** Visualiza threads y queries activas (`SHOW PROCESSLIST` / `pg_stat_activity`) con botón para **Detener Consulta de forma segura** (`KILL QUERY <id>`).
 
-4. **⚖️ Comparador Visual de Esquemas & Generador de Migraciones:**
-   * Compara dos bases de datos lado a lado (ej. `Local` vs `Producción`).
-   * Muestra tablas faltantes, columnas faltantes y diferencias en tipos de datos.
-   * **Generador SQL:** Produce el script con los `ALTER TABLE ... ADD COLUMN ...` exactos para sincronizar ambos lados.
+5. **🧪 Generador Inteligente de Mock Data & Poblado en Cascada (DAG):**
+   * Puebla cualquier tabla con datos realistas mediante Faker.
+   * **Poblar Todo en Cascada (Graph Seeding):** Resuelve el grafo de dependencias de claves foráneas hacia tablas vacías, poblando primero las tablas padre e inyectando sus IDs en las tablas hijas automáticamente.
+   * **Exportación de Seeds:** Exporta a `.sql` (`INSERT INTO`), `.csv` y `.json`.
 
-5. **🧪 Generador Inteligente de Datos Falsos (Mock Data):**
-   * Puebla cualquier tabla con N filas de prueba realistas mediante Faker.
-   * Infiere automáticamente generadores para correos, nombres, teléfonos, direcciones, precios, UUIDs, enums y fechas.
-   * Inserción directa con transacciones seguras en Beekeeper.
+6. **🐳 Auto-Discovery (Docker & Proyectos Locales):**
+   * Detecta contenedores activos (`docker ps`) de MySQL, Postgres, MongoDB, Redis, ClickHouse y SQL Server con mapeo de puertos en el host.
+   * Extrae credenciales de archivos `.env` locales listas para guardar en Beekeeper.
+
+7. **📖 Diccionario de Datos:**
+   * Exporta la documentación técnica de la base de datos en Markdown o HTML estático.
 
 ---
 
@@ -49,7 +60,7 @@ Todo el procesamiento ocurre en tu máquina. El companion daemon solo escucha en
 
 ---
 
-## 🚀 Instalación
+## 🚀 Instalación y Autoarranque
 
 ### Opción A: Symlink para desarrollo/uso local
 
@@ -61,27 +72,35 @@ npm run build
 ln -s "$(pwd)" ~/.config/beekeeper-studio/plugins/bks-db-manager
 ```
 
-### Opción B: Plugin Manager de Beekeeper Studio
+### 1. Autoarranque del Servicio Daemon (Multiplataforma)
 
-Una vez publicado en el [registro oficial de plugins](https://github.com/beekeeper-studio/beekeeper-studio-plugins), podrás instalarlo directamente desde **Beekeeper Studio → Plugin Manager** sin pasos manuales.
-
-### 1. Iniciar el Companion Daemon (motor de streaming y Docker)
-
-Necesario para las funciones de streaming de alta velocidad y detección de Docker:
+Para no tener que abrir una terminal cada vez que uses Beekeeper Studio, instala el servicio en segundo plano:
 
 ```bash
-npm run server
+# Instala el servicio en segundo plano (Linux systemd, macOS LaunchAgent o Windows Startup)
+npm run daemon:install
+
+# Comprueba que esté activo y respondiendo
+npm run daemon:status
+
+# Para desinstalarlo en cualquier momento
+npm run daemon:uninstall
 ```
 
-*(El companion corre en `http://127.0.0.1:58765`).*
+*(También puedes correrlo temporalmente en una terminal con `npm run server` si lo prefieres).*
 
 ### 2. Abrir en Beekeeper Studio
 
 1. Abre **Beekeeper Studio** y conéctate a cualquier base de datos.
-2. Accede a **DB Manager Pro** desde:
-   * El menú superior: **`Tools` ➔ `DB Manager Pro`**.
-   * El botón `+` de nueva pestaña ➔ **`DB Manager Pro`**.
-   * Clic derecho en cualquier tabla ➔ **`DB Manager Pro`**.
+2. Cada herramienta está disponible directamente desde la barra superior en **`Tools`**:
+   * **`Tools` ➔ `DB Manager: Snapshots & Backups`**
+   * **`Tools` ➔ `DB Manager: Clonado Stream (A ➔ B)`**
+   * **`Tools` ➔ `DB Manager: Schema Diff & Migraciones`**
+   * **`Tools` ➔ `DB Manager: Auditor de Salud & Rendimiento`**
+   * **`Tools` ➔ `DB Manager: Generador Mock Data`**
+   * **`Tools` ➔ `DB Manager: Diccionario de Datos`**
+   * **`Tools` ➔ `DB Manager: Auto-Discovery (Docker & .env)`**
+   * O clic derecho sobre cualquier tabla ➔ **`DB Manager: Mock Data para esta tabla`**.
 
 ### 3. Modo desarrollo con Hot Reload (opcional)
 
