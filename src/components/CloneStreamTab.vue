@@ -61,8 +61,19 @@
           >
             <option value="custom">Configuración Manual...</option>
             <option v-for="c in availableConns" :key="'src-' + c.id" :value="c">
-              {{ formatConnOption(c) }}
+              {{ formatConnOption(c, availableConns) }}
             </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Motor</label>
+          <select
+            v-model="source.motor"
+            :disabled="selectedSourceConn !== 'custom'"
+            class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <option v-for="m in CLONE_STREAM_ENGINES" :key="'src-motor-' + m" :value="m">{{ m.toUpperCase() }}</option>
           </select>
         </div>
 
@@ -101,7 +112,7 @@
               v-model="source.pass"
               type="password"
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-              placeholder="••••••••"
+              :placeholder="selectedSourceConn !== 'custom' && selectedSourceConn?.hasPassword ? 'Usar contraseña guardada' : '••••••••'"
             />
           </div>
         </div>
@@ -127,6 +138,7 @@
           <SearchableSelect
             v-model="source.db"
             :options="sourceDbs"
+            :allow-custom="false"
             placeholder="Escribe para filtrar o buscar BD origen..."
             @change="onSourceDbChange"
           />
@@ -170,8 +182,19 @@
           >
             <option value="custom">Configuración Manual...</option>
             <option v-for="c in availableConns" :key="'dst-' + c.id" :value="c">
-              {{ formatConnOption(c) }}
+              {{ formatConnOption(c, availableConns) }}
             </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Motor</label>
+          <select
+            v-model="dest.motor"
+            :disabled="selectedDestConn !== 'custom'"
+            class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <option v-for="m in CLONE_STREAM_ENGINES" :key="'dst-motor-' + m" :value="m">{{ m.toUpperCase() }}</option>
           </select>
         </div>
 
@@ -210,7 +233,7 @@
               v-model="dest.pass"
               type="password"
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-              placeholder="••••••••"
+              :placeholder="selectedDestConn !== 'custom' && selectedDestConn?.hasPassword ? 'Usar contraseña guardada' : '••••••••'"
             />
           </div>
         </div>
@@ -369,15 +392,22 @@
     <!-- Execution Bar & Progress -->
     <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-4 shadow-sm">
       <div class="flex items-center justify-between">
-        <button
-          v-if="!isCloning"
-          @click="startClone"
-          :disabled="!canClone"
-          class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.98]"
-        >
-          <Play class="w-4 h-4 fill-current" />
-          <span>Iniciar Clonado Stream</span>
-        </button>
+        <div v-if="!isCloning" class="flex flex-col gap-1.5">
+          <button
+            @click="startClone"
+            :disabled="!canClone"
+            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.98]"
+          >
+            <Play class="w-4 h-4 fill-current" />
+            <span>Iniciar Clonado Stream</span>
+          </button>
+          <span v-if="cloneMotorUnsupported" class="text-[11px] text-amber-400">
+            Clonado en streaming no soportado para {{ source.motor.toUpperCase() }} todavía.
+          </span>
+          <span v-else-if="cloneMotorMismatch" class="text-[11px] text-amber-400">
+            Origen ({{ source.motor.toUpperCase() }}) y destino ({{ dest.motor.toUpperCase() }}) deben ser el mismo motor.
+          </span>
+        </div>
 
         <button
           v-else
@@ -481,18 +511,19 @@ import {
 import {
   checkCompanionStatus,
   getSavedConnections,
-  getDatabasesList,
   getTablesList,
   getDatabaseInfo,
   startStreamClone,
+  formatConnOption,
   type SavedConnection
 } from '../services/companion';
 import {
   fetchCurrentConnection,
-  fetchDatabases,
   copyToSystemClipboard,
   type ConnectionData
 } from '../services/beekeeper';
+import { listDatabasesForConnection } from '../services/connectionAccess';
+import { normalizeMotor, CLONE_STREAM_ENGINES } from '../../shared/dbEngines.js';
 import SearchableSelect from './SearchableSelect.vue';
 
 const daemonConnected = ref(false);
@@ -507,7 +538,8 @@ const source = ref({
   port: 3307,
   user: 'root',
   pass: '',
-  db: ''
+  db: '',
+  motor: 'mysql'
 });
 
 const dest = ref({
@@ -515,7 +547,8 @@ const dest = ref({
   port: 3308,
   user: 'root',
   pass: '',
-  db: ''
+  db: '',
+  motor: 'mysql'
 });
 
 const sourceDbs = ref<string[]>([]);
@@ -546,17 +579,6 @@ function formatMb(mb: number | undefined | null) {
     return `${(mb / 1024).toFixed(2)} GB`;
   }
   return `${mb.toFixed(1)} MB`;
-}
-
-function formatConnOption(c: SavedConnection) {
-  const icon = c.isBeekeeper ? '🗄️' : '⚡';
-  const duplicates = availableConns.value.filter(
-    (item) => item.name.trim().toLowerCase() === c.name.trim().toLowerCase()
-  );
-  if (duplicates.length > 1) {
-    return `${icon} ${c.name} (${c.motor.toUpperCase()} :${c.port})`;
-  }
-  return `${icon} ${c.name} (${c.motor.toUpperCase()})`;
 }
 
 const transferPercent = computed(() => {
@@ -627,15 +649,22 @@ function clearLogs() {
   logs.value = [];
 }
 
+// The streaming clone pipes one dump process into one restore process, so
+// source and destination must be the same engine (no cross-motor migration).
+const cloneMotorMismatch = computed(() => source.value.motor !== dest.value.motor);
+const cloneMotorUnsupported = computed(() => !CLONE_STREAM_ENGINES.includes(source.value.motor));
+
 const canClone = computed(() => {
-  return (
+  return Boolean(
     daemonConnected.value &&
     source.value.host &&
     source.value.user &&
     source.value.db &&
     dest.value.host &&
     dest.value.user &&
-    dest.value.db
+    dest.value.db &&
+    !cloneMotorMismatch.value &&
+    !cloneMotorUnsupported.value
   );
 });
 
@@ -655,7 +684,10 @@ async function onSourceConnChange() {
     source.value.host = c.host;
     source.value.port = c.port || 3306;
     source.value.user = c.user;
-    source.value.pass = c.password || '';
+    source.value.motor = normalizeMotor(c.motor);
+    // The daemon never sends saved passwords back to the client; leaving this
+    // empty makes the daemon resolve the saved one server-side when needed.
+    source.value.pass = '';
     await loadSourceDbs();
   }
 }
@@ -666,45 +698,31 @@ async function onDestConnChange() {
     dest.value.host = c.host;
     dest.value.port = c.port || 3306;
     dest.value.user = c.user;
-    dest.value.pass = c.password || '';
+    dest.value.motor = normalizeMotor(c.motor);
+    // The daemon never sends saved passwords back to the client; leaving this
+    // empty makes the daemon resolve the saved one server-side when needed.
+    dest.value.pass = '';
     await loadDestDbs();
   }
 }
 
 async function loadSourceDbs() {
   loadingSourceDbs.value = true;
-  let dbs: string[] = [];
 
-  // Check if this connection matches current active Beekeeper connection
-  const isCurrentActive =
+  const isCurrentActive = Boolean(
     currentBksConn.value &&
     (selectedSourceConn.value?.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() ||
-      selectedSourceConn.value?.isBeekeeper);
+      selectedSourceConn.value?.isBeekeeper)
+  );
 
-  if (isCurrentActive) {
-    try {
-      dbs = await fetchDatabases();
-    } catch (e) {
-      console.warn('Beekeeper SDK fetchDatabases error:', e);
-    }
-  }
-
-  // If Beekeeper SDK didn't return (or different connection), query companion
-  if (!dbs || dbs.length === 0) {
-    try {
-      dbs = await getDatabasesList({
-        motor: 'mysql',
-        host: source.value.host,
-        port: source.value.port,
-        user: source.value.user,
-        pass: source.value.pass
-      });
-    } catch (e) {
-      console.warn('Companion getDatabasesList error:', e);
-    }
-  }
-
-  sourceDbs.value = dbs;
+  sourceDbs.value = await listDatabasesForConnection({
+    motor: source.value.motor,
+    host: source.value.host,
+    port: source.value.port,
+    user: source.value.user,
+    pass: source.value.pass,
+    isCurrentActive
+  });
   loadingSourceDbs.value = false;
 
   // Auto-select DB: prefer Beekeeper's active DB if present, otherwise first DB
@@ -723,20 +741,22 @@ async function loadSourceDbs() {
 async function loadDestDbs() {
   if (!dest.value.host || !dest.value.user) return;
   loadingDestDbs.value = true;
-  try {
-    destDbs.value = await getDatabasesList({
-      motor: 'mysql',
-      host: dest.value.host,
-      port: dest.value.port,
-      user: dest.value.user,
-      pass: dest.value.pass
-    });
-  } catch (e) {
-    console.warn('Companion loadDestDbs error:', e);
-    destDbs.value = [];
-  } finally {
-    loadingDestDbs.value = false;
-  }
+
+  const isCurrentActive = Boolean(
+    currentBksConn.value &&
+    (selectedDestConn.value?.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() ||
+      selectedDestConn.value?.isBeekeeper)
+  );
+
+  destDbs.value = await listDatabasesForConnection({
+    motor: dest.value.motor,
+    host: dest.value.host,
+    port: dest.value.port,
+    user: dest.value.user,
+    pass: dest.value.pass,
+    isCurrentActive
+  });
+  loadingDestDbs.value = false;
 }
 
 async function onSourceDbChange() {
@@ -752,7 +772,7 @@ async function loadSourceDbStats() {
   }
   try {
     const stats = await getDatabaseInfo({
-      motor: 'mysql',
+      motor: source.value.motor,
       host: source.value.host,
       port: source.value.port,
       user: source.value.user,
@@ -777,7 +797,7 @@ function syncDestDbWithSource() {
 async function loadTablesForExclusion() {
   if (!source.value.db) return;
   availableTables.value = await getTablesList({
-    motor: 'mysql',
+    motor: source.value.motor,
     host: source.value.host,
     port: source.value.port,
     user: source.value.user,
@@ -830,6 +850,7 @@ function startClone() {
       dstUser: dest.value.user,
       dstPass: dest.value.pass,
       dstDb: dest.value.db,
+      motor: source.value.motor,
       excludeTables: excluded,
       maskData: maskData.value
     },

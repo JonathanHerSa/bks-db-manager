@@ -58,13 +58,14 @@
       <CloneStreamTab v-if="activeTab === 'clone'" />
       <SchemaDiffTab v-if="activeTab === 'diff'" />
       <DiscoveryTab v-if="activeTab === 'discovery'" />
-      <MockDataTab v-if="activeTab === 'mock'" />
+      <MockDataTab v-if="activeTab === 'mock'" :initial-table="initialTable" />
+      <DataDictionaryTab v-if="activeTab === 'docs'" />
     </main>
 
     <!-- Footer -->
     <footer class="border-t border-white/[0.06] bg-slate-950/40 py-3 mt-auto">
       <div class="max-w-7xl mx-auto px-6 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-        <span>DB Manager Pro para Beekeeper Studio • MIT</span>
+        <span>DB Manager Pro para Beekeeper Studio • GPLv3</span>
         <span>Streaming Pipes • Zero Temp Files</span>
       </div>
     </footer>
@@ -72,28 +73,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { Database, RefreshCw, GitCompare, Container, Sparkles } from 'lucide-vue-next';
-import CloneStreamTab from './components/CloneStreamTab.vue';
-import SchemaDiffTab from './components/SchemaDiffTab.vue';
-import DiscoveryTab from './components/DiscoveryTab.vue';
-import MockDataTab from './components/MockDataTab.vue';
-import { fetchCurrentConnection, type ConnectionData } from './services/beekeeper';
+import { ref, onMounted, defineAsyncComponent } from 'vue';
+import { Database, RefreshCw, GitCompare, Container, Sparkles, BookOpen } from 'lucide-vue-next';
+import {
+  fetchCurrentConnection,
+  fetchViewContext,
+  extractTableFromViewContext,
+  type ConnectionData
+} from './services/beekeeper';
 
-type TabType = 'clone' | 'diff' | 'discovery' | 'mock';
+const CloneStreamTab = defineAsyncComponent(() => import('./components/CloneStreamTab.vue'));
+const SchemaDiffTab = defineAsyncComponent(() => import('./components/SchemaDiffTab.vue'));
+const DiscoveryTab = defineAsyncComponent(() => import('./components/DiscoveryTab.vue'));
+const MockDataTab = defineAsyncComponent(() => import('./components/MockDataTab.vue'));
+const DataDictionaryTab = defineAsyncComponent(() => import('./components/DataDictionaryTab.vue'));
+
+type TabType = 'clone' | 'diff' | 'discovery' | 'mock' | 'docs';
 
 const activeTab = ref<TabType>('clone');
+const initialTable = ref<string | null>(null);
 
 const tabs = [
   { id: 'clone' as TabType, label: 'Clonado Stream (A ➔ B)', icon: RefreshCw },
   { id: 'diff' as TabType, label: 'Schema Diff & Migraciones', icon: GitCompare },
   { id: 'discovery' as TabType, label: 'Auto-Discovery (Docker & .env)', icon: Container },
-  { id: 'mock' as TabType, label: 'Mock Data Generator', icon: Sparkles }
+  { id: 'mock' as TabType, label: 'Mock Data Generator', icon: Sparkles },
+  { id: 'docs' as TabType, label: 'Diccionario de Datos & ERD', icon: BookOpen }
 ];
 
 const currentConn = ref<ConnectionData | null>(null);
 
 onMounted(async () => {
   currentConn.value = await fetchCurrentConnection();
+  try {
+    const ctx = await fetchViewContext();
+    const table = extractTableFromViewContext(ctx);
+    if (table) {
+      initialTable.value = table;
+      activeTab.value = 'mock';
+    }
+  } catch (err) {
+    console.warn('Error reading view context in App:', err);
+  }
 });
 </script>

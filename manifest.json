@@ -21,12 +21,6 @@
     ],
     "menus": [
       {
-        "command": "new-tab-dropdown-item",
-        "name": "Add DB Manager Pro",
-        "view": "bks-db-manager",
-        "placement": "newTabDropdown"
-      },
-      {
         "command": "open-db-manager-tools",
         "name": "DB Manager Pro",
         "view": "bks-db-manager",

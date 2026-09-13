@@ -3,18 +3,42 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { exec, spawn } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { Transform } from 'stream';
 import { StringDecoder } from 'string_decoder';
-import { normalizeMotor, getDefaultPort } from '../shared/dbEngines.js';
+import { normalizeMotor, getDefaultPort, supportsCloneStream } from '../shared/dbEngines.js';
+import { getEngine } from './engines/index.js';
+import { escSqlStr } from './engines/escaping.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const app = express();
 const PORT = process.env.BKS_DB_MANAGER_PORT || 58765;
 
+// NOTE (security): cors() with no options reflects any Origin. This daemon executes
+// system commands, reads local files and dumps databases, so this is intentionally
+// flagged for a product decision (see audit notes) rather than silently changed here,
+// since Beekeeper Studio plugin iframes may not send a whitelistable Origin header.
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+
+// Redacts anything that looks like a credential/password from strings before they are
+// ever logged to the console or sent back to the HTTP client.
+function sanitizeSecrets(str = '') {
+  return String(str)
+    .replace(/(MYSQL_PWD|PGPASSWORD)=(\S+)/gi, '$1=[REDACTED]')
+    .replace(/(password|pwd|pass)\s*[:=]\s*['"]?[^'"\s;]+['"]?/gi, '$1=[REDACTED]');
+}
+
+// Generic-but-safe error message for API responses: never forwards raw command lines,
+// SQL text or stack traces (which could contain credentials or leak internal paths).
+function safeErrorMessage(err, fallback = 'Error ejecutando la operación.') {
+  if (!err) return fallback;
+  const stderr = typeof err.stderr === 'string' ? err.stderr : (err.stderr ? err.stderr.toString() : '');
+  const base = stderr && stderr.trim() ? stderr.trim() : fallback;
+  return sanitizeSecrets(base).slice(0, 2000);
+}
 
 const HOME = os.homedir();
 const CONNS_FILE = path.join(HOME, '.db_manager_conns.list');
@@ -36,7 +60,7 @@ app.get('/api/status', async (req, res) => {
       status[tool] = false;
     }
   }
-  res.json({ ok: true, version: '1.0.0', tools });
+  res.json({ ok: true, version: '1.0.0', tools: status });
 });
 
 function getKnownPasswords() {
@@ -119,9 +143,10 @@ async function getBeekeeperSavedConnections() {
     const dbPath = path.join(HOME, '.config', 'beekeeper-studio', 'app.db');
     if (!fs.existsSync(dbPath)) return [];
 
-    const { stdout } = await execAsync(
-      `sqlite3 "${dbPath}" "SELECT id, name, connectionType, host, port, username, defaultDatabase, path, url FROM saved_connection;"`
-    );
+    const { stdout } = await execFileAsync('sqlite3', [
+      dbPath,
+      'SELECT id, name, connectionType, host, port, username, defaultDatabase, path, url FROM saved_connection;'
+    ]);
     if (!stdout.trim()) return [];
 
     const lines = stdout.trim().split('\n').filter(Boolean);
@@ -145,6 +170,13 @@ async function getBeekeeperSavedConnections() {
       const finalHost = isFileDb ? (pathVal || 'Local File') : (host || '127.0.0.1');
       const finalPort = isFileDb ? null : (parseInt(port) || getDefaultPort(motor));
       const finalUser = isFileDb ? 'N/A' : (username || getDefaultUser(motor));
+      // NOTE (security): the resolved password is intentionally NOT included in the
+      // response — GET /api/conns has no authentication and, with CORS wide open, any
+      // web page could otherwise read every saved credential in plaintext. Endpoints
+      // that actually need the password (`/api/databases`, `/api/tables`,
+      // `/api/database/info`, `/api/schema/inspect`, `/api/clone/stream`) already
+      // resolve it themselves server-side via `resolvePassword()` when the caller
+      // sends an empty `pass`, so the frontend never needs to see or re-send it.
       const resolvedPass = resolvePassword(finalHost, finalPort || 0, finalUser, '', name);
 
       conns.push({
@@ -157,7 +189,6 @@ async function getBeekeeperSavedConnections() {
         defaultDatabase: defaultDatabase || '',
         path: pathVal,
         url: urlVal,
-        password: resolvedPass,
         hasPassword: Boolean(resolvedPass),
         isBeekeeper: true
       });
@@ -193,7 +224,6 @@ app.get('/api/conns', async (req, res) => {
             host: host || (isFileDb ? 'Local File' : 'localhost'),
             port: finalPort,
             user: user || (isFileDb ? 'N/A' : 'root'),
-            password: pass || '',
             hasPassword: Boolean(pass && pass.trim()),
             isBeekeeper: false
           });
@@ -204,7 +234,8 @@ app.get('/api/conns', async (req, res) => {
     const conns = [...bksConns, ...customConns];
     res.json({ conns });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error listing connections:', sanitizeSecrets(err.message || ''));
+    res.status(500).json({ error: safeErrorMessage(err, 'No se pudieron leer las conexiones guardadas.') });
   }
 });
 
@@ -221,44 +252,55 @@ app.post('/api/conns/save', async (req, res) => {
     const isFileDb = connectionType === 'sqlite' || connectionType === 'duckdb';
     const connName = name || `${connectionType} - ${database || host || (isFileDb ? path.basename(dbPath || '') : 'Conexión')}`;
 
+    // NOTE: normalizeMotor() falls back to returning the raw (lowercased) input
+    // verbatim for unrecognized engine names, so `connectionType` must still be
+    // treated as untrusted input and escaped before being embedded in SQL text.
+    const safeConnectionType = escSqlStr(connectionType);
+
     // Check if already exists in Beekeeper app.db
     const checkSql = isFileDb
-      ? `SELECT id FROM saved_connection WHERE connectionType = '${connectionType}' AND path = '${(dbPath || '').replace(/'/g, "''")}' LIMIT 1;`
-      : `SELECT id FROM saved_connection WHERE connectionType = '${connectionType}' AND host = '${(host || '').replace(/'/g, "''")}' AND port = ${parseInt(port) || 0} AND defaultDatabase = '${(database || '').replace(/'/g, "''")}' LIMIT 1;`;
+      ? `SELECT id FROM saved_connection WHERE connectionType = '${safeConnectionType}' AND path = '${escSqlStr(dbPath || '')}' LIMIT 1;`
+      : `SELECT id FROM saved_connection WHERE connectionType = '${safeConnectionType}' AND host = '${escSqlStr(host || '')}' AND port = ${parseInt(port) || 0} AND defaultDatabase = '${escSqlStr(database || '')}' LIMIT 1;`;
 
-    const { stdout: checkOut } = await execAsync(`sqlite3 "${beekeeperDbPath}" "${checkSql}"`);
+    const { stdout: checkOut } = await execFileAsync('sqlite3', [beekeeperDbPath, checkSql]);
     if (checkOut.trim()) {
       return res.json({ success: true, alreadyExists: true, message: 'Esta conexión ya existe guardada en Beekeeper Studio.' });
     }
 
-    const safeName = connName.replace(/'/g, "''");
-    const safeHost = (host || '').replace(/'/g, "''");
+    const safeName = escSqlStr(connName);
+    const safeHost = escSqlStr(host || '');
     const safePort = parseInt(port) || 0;
-    const safeUser = (user || '').replace(/'/g, "''");
-    const safePass = (password || '').replace(/'/g, "''");
-    const safeDb = (database || '').replace(/'/g, "''");
-    const safePath = (dbPath || '').replace(/'/g, "''");
-    const safeUrl = (url || '').replace(/'/g, "''");
+    const safeUser = escSqlStr(user || '');
+    const safePass = escSqlStr(password || '');
+    const safeDb = escSqlStr(database || '');
+    const safePath = escSqlStr(dbPath || '');
+    const safeUrl = escSqlStr(url || '');
 
     const insertSql = `INSERT INTO saved_connection (
       createdAt, updatedAt, version, connectionType, host, port, username, password, defaultDatabase, path, url, uniqueHash, name, rememberPassword
     ) VALUES (
-      datetime('now'), datetime('now'), 1, '${connectionType}', '${safeHost}', ${safePort}, '${safeUser}', '${safePass}', '${safeDb}', '${safePath}', '${safeUrl}', 'DEPRECATED', '${safeName}', 1
+      datetime('now'), datetime('now'), 1, '${safeConnectionType}', '${safeHost}', ${safePort}, '${safeUser}', '${safePass}', '${safeDb}', '${safePath}', '${safeUrl}', 'DEPRECATED', '${safeName}', 1
     );`;
 
-    await execAsync(`sqlite3 "${beekeeperDbPath}" "${insertSql}"`);
+    await execFileAsync('sqlite3', [beekeeperDbPath, insertSql]);
 
-    if (safePass) {
+    if (password) {
       try {
         const passFile = path.join(HOME, '.db_manager_passwords');
-        fs.appendFileSync(passFile, `\n${safeHost}:${safePort}:${safeUser}:${safePass}`);
+        // Raw (unescaped) values on disk; file is created/kept with owner-only permissions
+        // since it stores plaintext credentials.
+        fs.appendFileSync(passFile, `\n${host || ''}:${parseInt(port) || 0}:${user || ''}:${password}`, { mode: 0o600 });
+        fs.chmodSync(passFile, 0o600);
       } catch {}
     }
 
     res.json({ success: true, alreadyExists: false, message: '¡Conexión guardada exitosamente en Beekeeper Studio!' });
   } catch (err) {
-    console.error('Error saving connection to Beekeeper:', err);
-    res.status(500).json({ error: err.message });
+    // NOTE: never log or return `err` as-is here: the sqlite3 argv for this command
+    // contains the plaintext SQL (including the password), which Node attaches to
+    // failed-exec errors (`Command failed: sqlite3 <db> <sql>`).
+    console.error('Error saving connection to Beekeeper (details redacted).');
+    res.status(500).json({ error: 'No se pudo guardar la conexión en Beekeeper Studio.' });
   }
 });
 
@@ -364,14 +406,21 @@ app.get('/api/docker', async (req, res) => {
 
 // 4. Scan local projects for databases (all types: SQLite, MySQL, Postgres, MSSQL, Mongo, Redis, ClickHouse, etc.)
 app.get('/api/discovery/projects', async (req, res) => {
-  let rootDir = req.query.path || path.join(HOME, 'Proyectos');
+  let rootDir = req.query.path;
+  if (rootDir !== undefined && typeof rootDir !== 'string') {
+    return res.status(400).json({ error: 'Parámetro "path" inválido.' });
+  }
+  rootDir = rootDir || path.join(HOME, 'Proyectos');
   if (rootDir.startsWith('~/')) {
     rootDir = path.join(HOME, rootDir.slice(2));
   } else if (rootDir === '~') {
     rootDir = HOME;
   }
 
-  const maxDepth = parseInt(req.query.depth) || 6;
+  // Clamp to a sane range: unbounded recursion depth from an untrusted caller
+  // (any origin, since this daemon has no auth) could be used for a local DoS.
+  const requestedDepth = parseInt(req.query.depth, 10);
+  const maxDepth = Number.isFinite(requestedDepth) ? Math.min(Math.max(requestedDepth, 0), 12) : 6;
   const projects = [];
 
   function parseEnv(content, currentDir) {
@@ -749,131 +798,71 @@ app.get('/api/discovery/projects', async (req, res) => {
     }
   }
 
-  scanDir(rootDir);
-  res.json({ projects, scannedDir: rootDir, maxDepth });
+  try {
+    scanDir(rootDir);
+    res.json({ projects, scannedDir: rootDir, maxDepth });
+  } catch (err) {
+    console.error('Error scanning projects (details redacted).');
+    res.status(500).json({ error: 'No se pudo escanear el directorio indicado.' });
+  }
 });
 
 // 5. Query databases list for a connection
 app.post('/api/databases', async (req, res) => {
-  let { motor = 'mysql', host, port, user, pass, name } = req.body;
-  const normMotor = normalizeMotor(motor);
-  const isMysql = normMotor === 'mysql' || normMotor === 'mariadb' || normMotor === 'tidb';
-  const isPg = normMotor === 'postgresql' || normMotor === 'cockroachdb' || motor === 'pg';
+  const { motor = 'mysql', host, port, user, pass, name } = req.body;
+  const engine = getEngine(normalizeMotor(motor));
+  if (!engine) return res.json({ databases: [] });
   const rawPass = resolvePassword(host, port, user, pass, name);
-  const safePass = rawPass.replace(/'/g, "'\\''");
   try {
-    let cmd = '';
-    if (isMysql) {
-      cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} -N -s -e 'SHOW DATABASES;' 2>/dev/null`;
-    } else if (isPg) {
-      cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -t -c "SELECT datname FROM pg_database WHERE datistemplate = false;" postgres 2>/dev/null`;
-    }
-
-    if (!cmd) return res.json({ databases: [] });
-
-    const { stdout } = await execAsync(cmd);
-    const ignoreDbs = ['information_schema', 'performance_schema', 'mysql', 'sys', 'postgres', 'template0', 'template1'];
-    const databases = stdout.split('\n').map(s => s.trim()).filter(s => s && !ignoreDbs.includes(s));
+    const databases = await engine.listDatabases({ host, port, user, pass: rawPass });
     res.json({ databases });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err, 'No se pudo obtener la lista de bases de datos.') });
   }
 });
 
 // 6. Query tables list for a database
 app.post('/api/tables', async (req, res) => {
-  let { motor = 'mysql', host, port, user, pass, database, name } = req.body;
-  const normMotor = normalizeMotor(motor);
-  const isMysql = normMotor === 'mysql' || normMotor === 'mariadb' || normMotor === 'tidb';
-  const isPg = normMotor === 'postgresql' || normMotor === 'cockroachdb' || motor === 'pg';
+  const { motor = 'mysql', host, port, user, pass, database, name } = req.body;
+  const engine = getEngine(normalizeMotor(motor));
+  if (!engine) return res.json({ tables: [] });
   const rawPass = resolvePassword(host, port, user, pass, name);
-  const safePass = rawPass.replace(/'/g, "'\\''");
   try {
-    let cmd = '';
-    if (isMysql) {
-      cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} ${database} -N -s -e 'SHOW TABLES;' 2>/dev/null`;
-    } else if (isPg) {
-      cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -d ${database} -t -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';" 2>/dev/null`;
-    }
-
-    if (!cmd) return res.json({ tables: [] });
-
-    const { stdout } = await execAsync(cmd);
-    const tables = stdout.split('\n').map(s => s.trim()).filter(Boolean);
+    const tables = await engine.listTables({ host, port, user, pass: rawPass, database });
     res.json({ tables });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err, 'No se pudo obtener la lista de tablas.') });
   }
 });
 
 // 6.5 Query database size & stats
 app.post('/api/database/info', async (req, res) => {
-  let { motor = 'mysql', host, port, user, pass, database, name } = req.body;
-  const normMotor = normalizeMotor(motor);
-  const isMysql = normMotor === 'mysql' || normMotor === 'mariadb' || normMotor === 'tidb';
-  const isPg = normMotor === 'postgresql' || normMotor === 'cockroachdb' || motor === 'pg';
+  const { motor = 'mysql', host, port, user, pass, database, name } = req.body;
+  const engine = getEngine(normalizeMotor(motor));
+  if (!engine) return res.json({ mb: 0, tables: 0, sqlMb: 0 });
   const rawPass = resolvePassword(host, port, user, pass, name);
-  const safePass = rawPass.replace(/'/g, "'\\''");
   try {
-    let cmd = '';
-    if (isMysql) {
-      cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} -N -s -e "SELECT ROUND(SUM(data_length + index_length) / (1024 * 1024), 2) AS mb, COUNT(*) AS tables FROM information_schema.TABLES WHERE table_schema='${database}';" 2>/dev/null`;
-    } else if (isPg) {
-      cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -d ${database} -t -c "SELECT ROUND(pg_database_size('${database}') / (1024.0 * 1024.0), 2);" 2>/dev/null`;
-    }
-
-    if (!cmd) return res.json({ mb: 0, tables: 0, sqlMb: 0 });
-
-    const { stdout } = await execAsync(cmd);
-    const parts = stdout.trim().split(/\s+/);
-    const mb = parseFloat(parts[0]) || 0;
-    const tables = parseInt(parts[1]) || 0;
-    // Uncompressed SQL text is roughly 2.8x InnoDB binary footprint for JSON/text heavy DBs
+    const { mb, tables } = await engine.getDatabaseInfo({ host, port, user, pass: rawPass, database });
+    // Uncompressed SQL text is roughly 2.8x the binary on-disk footprint for JSON/text heavy DBs
     const sqlMb = Math.round(mb * 2.8);
     res.json({ mb, tables, sqlMb });
   } catch (err) {
-    res.json({ mb: 0, tables: 0, sqlMb: 0, error: err.message });
+    res.json({ mb: 0, tables: 0, sqlMb: 0, error: safeErrorMessage(err, 'No se pudo obtener información de la base de datos.') });
   }
 });
 
 // 6.6 Query table columns metadata for cross-connection schema diff
 app.post('/api/schema/inspect', async (req, res) => {
-  let { motor = 'mysql', host, port, user, pass, database, name } = req.body;
+  const { motor = 'mysql', host, port, user, pass, database, name } = req.body;
+  const engine = getEngine(normalizeMotor(motor));
+  if (!engine) return res.json({ columns: [] });
   const rawPass = resolvePassword(host, port, user, pass, name);
-  const safePass = rawPass.replace(/'/g, "'\\''");
-
   try {
-    let cmd = '';
-    if (motor === 'mysql') {
-      const sql = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, IFNULL(COLUMN_DEFAULT, 'NULL') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${database}' ORDER BY TABLE_NAME, ORDINAL_POSITION;`;
-      cmd = `MYSQL_PWD='${safePass}' mysql -h${host} -P${port} -u${user} -N -s -e "${sql}" 2>/dev/null`;
-    } else if (motor === 'pg') {
-      const sql = `SELECT table_name, column_name, data_type, is_nullable, COALESCE(column_default, 'NULL') FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position;`;
-      cmd = `PGPASSWORD='${safePass}' psql -h ${host} -p ${port} -U ${user} -d ${database} -t -A -F "\\t" -c "${sql}" 2>/dev/null`;
-    }
-
-    if (!cmd) return res.json({ columns: [] });
-
-    const { stdout } = await execAsync(cmd);
-    const lines = stdout.trim().split('\n').filter(Boolean);
-    const columns = [];
-    for (const line of lines) {
-      const parts = line.split('\t');
-      if (parts.length >= 3) {
-        columns.push({
-          table: parts[0],
-          column: parts[1],
-          type: parts[2],
-          nullable: parts[3] || 'YES',
-          defaultVal: parts[4] === 'NULL' ? null : parts[4]
-        });
-      }
-    }
-
+    const columns = await engine.inspectSchema({ host, port, user, pass: rawPass, database });
     res.json({ columns });
   } catch (err) {
-    console.error('Error in /api/schema/inspect:', err.message);
-    res.json({ columns: [], error: err.message });
+    console.error('Error in /api/schema/inspect (details redacted).');
+    res.json({ columns: [], error: safeErrorMessage(err, 'No se pudo inspeccionar el esquema.') });
   }
 });
 
@@ -886,6 +875,12 @@ app.post('/api/clone/stream', (req, res) => {
     excludeTables = [],
     maskData = false
   } = req.body;
+
+  const normMotor = normalizeMotor(motor);
+  const engine = supportsCloneStream(normMotor) ? getEngine(normMotor) : null;
+  if (!engine) {
+    return res.status(400).json({ error: `Clonado en streaming no soportado para el motor "${motor}".` });
+  }
 
   // Prevent Node.js from terminating long-running streaming requests
   req.setTimeout(0);
@@ -935,92 +930,28 @@ app.post('/api/clone/stream', (req, res) => {
     });
   }, 500);
 
-  // Auto-create destination database and set max_allowed_packet
-  const dstSafePass = (dstPass || '').replace(/'/g, "'\\''");
-  let createCmd = '';
-  if (motor === 'mysql') {
-    createCmd = `MYSQL_PWD='${dstSafePass}' mysql -h${dstHost} -P${dstPort} -u${dstUser} -e "SET GLOBAL max_allowed_packet=1073741824; CREATE DATABASE IF NOT EXISTS \\\`${dstDb}\\\` CHARACTER SET utf8mb4;" 2>/dev/null || MYSQL_PWD='${dstSafePass}' mysql -h${dstHost} -P${dstPort} -u${dstUser} -e "CREATE DATABASE IF NOT EXISTS \\\`${dstDb}\\\` CHARACTER SET utf8mb4;" 2>/dev/null`;
-  } else if (motor === 'pg') {
-    createCmd = `PGPASSWORD='${dstSafePass}' psql -h ${dstHost} -p ${dstPort} -U ${dstUser} postgres -c "CREATE DATABASE \\"${dstDb}\\";" 2>/dev/null || true`;
-  }
-
-  exec(createCmd, (err) => {
-    if (err) {
-      sendEvent('log', { message: `Aviso al verificar/crear base destino: ${err.message}` });
-    }
+  // Auto-create destination database. Delegated to the engine adapter
+  // (server/engines/*.js) — see shared/dbEngines.js for which motors resolve
+  // to which adapter.
+  engine.ensureDatabase({ host: dstHost, port: dstPort, user: dstUser, pass: dstPass, database: dstDb }).catch((err) => {
+    sendEvent('log', { message: `Aviso al verificar/crear base destino: ${safeErrorMessage(err, 'no se pudo verificar/crear automáticamente')}` });
+  }).finally(() => {
 
     sendEvent('log', { message: `Base de datos destino verificada: ${dstDb}` });
 
-    // Spawn source process
-    let srcProc = null;
-    let dstProc = null;
-
-    if (motor === 'mysql') {
-      const dumpArgs = [
-        `-h${srcHost}`, `-P${srcPort}`, `-u${srcUser}`,
-        '--compress',
-        '--single-transaction',
-        '--quick',
-        '--hex-blob',
-        '--default-character-set=utf8mb4',
-        '--max-allowed-packet=512M',
-        '--net-buffer-length=32768',
-        '--no-tablespaces',
-        '--routines',
-        '--triggers',
-        srcDb
-      ];
-      if (Array.isArray(excludeTables)) {
-        for (const t of excludeTables) {
-          dumpArgs.push(`--ignore-table=${srcDb}.${t}`);
-        }
-      }
-
-      const srcEnv = { ...process.env, MYSQL_PWD: srcPass };
-      srcProc = spawn('mysqldump', dumpArgs, { env: srcEnv });
-
-      const dstArgs = [
-        `-h${dstHost}`,
-        `-P${dstPort}`,
-        `-u${dstUser}`,
-        '--binary-mode',
-        '--batch',
-        '--default-character-set=utf8mb4',
-        '--max-allowed-packet=512M',
-        '--init-command=SET SESSION foreign_key_checks=0; SET SESSION unique_checks=0; SET SESSION sql_log_bin=0;',
-        '--force',
-        dstDb
-      ];
-      const dstEnv = { ...process.env, MYSQL_PWD: dstPass };
-      dstProc = spawn('mysql', dstArgs, { env: dstEnv });
-    } else if (motor === 'pg') {
-      const dumpArgs = [
-        `-h`, srcHost, `-p`, String(srcPort), `-U`, srcUser, `-d`, srcDb,
-        `--format=p`, `--no-owner`, `--no-privileges`
-      ];
-      if (Array.isArray(excludeTables)) {
-        for (const t of excludeTables) {
-          dumpArgs.push(`-T`, t);
-        }
-      }
-      const srcEnv = { ...process.env, PGPASSWORD: srcPass };
-      srcProc = spawn('pg_dump', dumpArgs, { env: srcEnv });
-
-      const dstArgs = [`-h`, dstHost, `-p`, String(dstPort), `-U`, dstUser, `-d`, dstDb];
-      const dstEnv = { ...process.env, PGPASSWORD: dstPass };
-      dstProc = spawn('psql', dstArgs, { env: dstEnv });
-    }
-
-    if (!srcProc || !dstProc) {
-      clearInterval(progressInterval);
-      sendEvent('error', { message: 'Motor no soportado para streaming' });
-      return res.end();
-    }
+    const srcProc = engine.spawnDump({ host: srcHost, port: srcPort, user: srcUser, pass: srcPass, database: srcDb, excludeTables });
+    const dstProc = engine.spawnRestore({ host: dstHost, port: dstPort, user: dstUser, pass: dstPass, database: dstDb });
 
     // Sanitizer stream: strip DEFINER, USE, SQL_LOG_BIN, GTID_PURGED, etc.
-    // Fast-path: only parse string and run regex when DDL keywords or maskData are active
+    // Fast-path: only parse string and run regex when DDL keywords or maskData are active.
+    // Only meaningful (and safe) for engines whose dump is plain SQL text —
+    // running this over a binary archive (e.g. MongoDB's `--archive`) would
+    // corrupt it, so non-textual engines skip straight through unchanged.
     const sanitizer = new Transform({
       transform(chunk, encoding, callback) {
+        if (!engine.textualDumpFormat) {
+          return callback(null, chunk);
+        }
         if (!maskData) {
           const hasKeyword =
             chunk.includes('DEFINER=') ||
@@ -1173,10 +1104,26 @@ app.post('/api/clone/stream', (req, res) => {
   });
 });
 
-const server = app.listen(PORT, '127.0.0.1', () => {
-  console.log(`🦅 DB Manager Companion Daemon running on http://127.0.0.1:${PORT}`);
+// Catch-all error handler: prevents Express's default handler from ever returning a
+// stack trace / internal file paths to the client for any route that throws
+// synchronously or forwards an error via next(err).
+app.use((err, req, res, _next) => {
+  console.error('Unhandled error in companion daemon (details redacted).');
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Error interno del companion daemon.' });
 });
-server.timeout = 0;
-server.keepAliveTimeout = 0;
-server.requestTimeout = 0;
-server.headersTimeout = 0;
+
+// Only bind a real port when this file is run directly (`node server/index.js`
+// / `npm run server`). Tests import `app` as a module and drive it via
+// supertest instead, without opening a real socket.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const server = app.listen(PORT, '127.0.0.1', () => {
+    console.log(`🦅 DB Manager Companion Daemon running on http://127.0.0.1:${PORT}`);
+  });
+  server.timeout = 0;
+  server.keepAliveTimeout = 0;
+  server.requestTimeout = 0;
+  server.headersTimeout = 0;
+}
+
+export default app;

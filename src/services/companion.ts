@@ -13,12 +13,30 @@ export interface SavedConnection {
   host: string;
   port: number | null;
   user: string;
-  password?: string;
+  // NOTE: the companion daemon never sends the resolved password back to the
+  // client (no auth + open CORS would otherwise leak every saved credential).
+  // Endpoints that need it (getDatabasesList, getTablesList, inspectSchema,
+  // startStreamClone) resolve it server-side when `pass` is omitted/empty.
   hasPassword: boolean;
   isBeekeeper?: boolean;
   defaultDatabase?: string;
   path?: string;
   url?: string;
+}
+
+/**
+ * Formats a saved connection for a <select> option label, disambiguating
+ * connections that share the same display name by appending their port.
+ */
+export function formatConnOption(conn: SavedConnection, allConns: SavedConnection[]): string {
+  const icon = conn.isBeekeeper ? '🗄️' : '⚡';
+  const duplicates = allConns.filter(
+    (item) => item.name.trim().toLowerCase() === conn.name.trim().toLowerCase()
+  );
+  if (duplicates.length > 1) {
+    return `${icon} ${conn.name} (${conn.motor.toUpperCase()} :${conn.port})`;
+  }
+  return `${icon} ${conn.name} (${conn.motor.toUpperCase()})`;
 }
 
 export interface DockerContainer {

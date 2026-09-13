@@ -41,7 +41,7 @@
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition cursor-pointer"
             >
               <option v-for="c in availableConns" :key="'src-c-' + c.id" :value="c">
-                {{ formatConnOption(c) }}
+                {{ formatConnOption(c, availableConns) }}
               </option>
             </select>
           </div>
@@ -52,6 +52,7 @@
             <SearchableSelect
               v-model="sourceDb"
               :options="sourceDbs"
+              :allow-custom="false"
               placeholder="Escribe para filtrar o buscar base de referencia..."
             />
           </div>
@@ -84,7 +85,7 @@
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition cursor-pointer"
             >
               <option v-for="c in availableConns" :key="'dst-c-' + c.id" :value="c">
-                {{ formatConnOption(c) }}
+                {{ formatConnOption(c, availableConns) }}
               </option>
             </select>
           </div>
@@ -95,6 +96,7 @@
             <SearchableSelect
               v-model="targetDb"
               :options="targetDbs"
+              :allow-custom="false"
               placeholder="Escribe para filtrar o buscar base destino..."
             />
           </div>
@@ -200,14 +202,32 @@
             <FileCode2 class="w-4 h-4 text-sky-400" />
             <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">Script SQL de Migración Sugerido</h3>
           </div>
-          <button
-            @click="copySql"
-            class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-          >
-            <Check v-if="sqlCopied" class="w-3.5 h-3.5 text-emerald-400" />
-            <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
-            <span>{{ sqlCopied ? '¡Copiado!' : 'Copiar SQL' }}</span>
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="openInBeekeeperEditor"
+              class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.98]"
+              title="Abrir este script en una nueva pestaña del editor de Beekeeper Studio"
+            >
+              <ExternalLink class="w-3.5 h-3.5" />
+              <span>Abrir en Editor</span>
+            </button>
+            <button
+              @click="saveSqlFile"
+              class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
+              title="Guardar script como archivo .sql"
+            >
+              <Download class="w-3.5 h-3.5 text-slate-400" />
+              <span>Guardar .sql</span>
+            </button>
+            <button
+              @click="copySql"
+              class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
+            >
+              <Check v-if="sqlCopied" class="w-3.5 h-3.5 text-emerald-400" />
+              <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
+              <span>{{ sqlCopied ? '¡Copiado!' : 'Copiar SQL' }}</span>
+            </button>
+          </div>
         </div>
 
         <pre class="p-4 rounded-lg bg-slate-950 text-emerald-400 font-mono text-xs overflow-x-auto border border-white/[0.06] leading-relaxed"><code>{{ generatedSql }}</code></pre>
@@ -218,21 +238,25 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { GitCompare, Search, CheckCircle2, FileCode2, Copy, Check, ArrowLeftRight } from 'lucide-vue-next';
+import { GitCompare, Search, CheckCircle2, FileCode2, Copy, Check, ArrowLeftRight, ExternalLink, Download } from 'lucide-vue-next';
 import {
   getSavedConnections,
-  getDatabasesList,
   inspectSchema,
+  formatConnOption,
   type SavedConnection,
   type ColumnMeta
 } from '../services/companion';
 import {
-  fetchDatabases,
   fetchCurrentConnection,
   executeQuery,
   copyToSystemClipboard,
+  isSafeIdentifier,
+  openQueryInBeekeeper,
+  exportToFile,
+  showNotification,
   type ConnectionData
 } from '../services/beekeeper';
+import { listDatabasesForConnection } from '../services/connectionAccess';
 import SearchableSelect from './SearchableSelect.vue';
 
 const availableConns = ref<SavedConnection[]>([]);
@@ -261,17 +285,6 @@ const diffSummary = ref<{
 
 const generatedSql = ref('');
 
-function formatConnOption(c: SavedConnection) {
-  const icon = c.isBeekeeper ? '🗄️' : '⚡';
-  const duplicates = availableConns.value.filter(
-    (item) => item.name.trim().toLowerCase() === c.name.trim().toLowerCase()
-  );
-  if (duplicates.length > 1) {
-    return `${icon} ${c.name} (${c.motor.toUpperCase()} :${c.port})`;
-  }
-  return `${icon} ${c.name} (${c.motor.toUpperCase()})`;
-}
-
 async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
   if (!conn) return [];
   const isCurrentActive = Boolean(
@@ -279,29 +292,16 @@ async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
     (conn.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() || conn.isBeekeeper)
   );
 
-  // If this connection is currently active in Beekeeper, try Beekeeper SDK first
-  if (isCurrentActive) {
-    try {
-      const dbs = await fetchDatabases();
-      if (dbs && dbs.length > 0) return dbs;
-    } catch (e) {
-      console.warn('fetchDatabases SDK error:', e);
-    }
-  }
-
-  // Otherwise query companion daemon
-  try {
-    return await getDatabasesList({
-      motor: conn.motor,
-      host: conn.host,
-      port: conn.port || 3306,
-      user: conn.user,
-      pass: conn.password
-    });
-  } catch (e) {
-    console.warn('getDatabasesList companion error:', e);
-    return [];
-  }
+  // `pass` is omitted: the daemon never sends saved passwords back to the
+  // client, so it resolves the saved one itself server-side from
+  // host/port/user/name when the caller doesn't provide one.
+  return listDatabasesForConnection({
+    motor: conn.motor,
+    host: conn.host,
+    port: conn.port || 3306,
+    user: conn.user,
+    isCurrentActive
+  });
 }
 
 async function onConn1Change() {
@@ -350,12 +350,13 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
   // 1. Companion schema inspection (cross-connection support)
   if (conn) {
     try {
+      // `pass` omitted on purpose: the daemon resolves the saved password
+      // server-side from host/port/user/name (see note in `loadDbsForConn`).
       const cols = await inspectSchema({
         motor: conn.motor,
         host: conn.host,
         port: conn.port || 3306,
         user: conn.user,
-        pass: conn.password,
         database: db,
         name: conn.name
       });
@@ -366,9 +367,13 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
   }
 
   // 2. Fallback to active Beekeeper connection executeQuery (with fixed FROM clause!)
-  const q = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT 
-             FROM information_schema.COLUMNS 
-             WHERE TABLE_SCHEMA = '${db}' 
+  if (!isSafeIdentifier(db)) {
+    console.warn(`Nombre de base de datos con caracteres no permitidos, se omite fallback SQL: ${db}`);
+    return [];
+  }
+  const q = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = '${db}'
              ORDER BY TABLE_NAME, ORDINAL_POSITION;`;
   try {
     const res = await executeQuery(q);
@@ -390,6 +395,12 @@ async function runSchemaDiff() {
   isComparing.value = true;
   hasDiffResults.value = false;
   generatedSql.value = '';
+
+  if (!isSafeIdentifier(sourceDb.value) || !isSafeIdentifier(targetDb.value)) {
+    console.error('Nombre de base de datos origen/destino con caracteres no permitidos.');
+    isComparing.value = false;
+    return;
+  }
 
   try {
     const [cols1, cols2] = await Promise.all([
@@ -414,7 +425,15 @@ async function runSchemaDiff() {
     const typeChanges: Array<{ table: string; column: string; srcType: string; dstType: string }> = [];
     const sqlStatements: string[] = [];
 
+    // Escapa un valor DEFAULT literal para incrustarlo entre comillas simples
+    // en el script generado (el nombre/tipo de columna se valida aparte).
+    const escapeDefaultLiteral = (v: string) => v.replace(/\\/g, '\\\\').replace(/'/g, "''");
+
     for (const [tblName, colsMap] of map1.entries()) {
+      if (!isSafeIdentifier(tblName)) {
+        sqlStatements.push(`-- Omitido: nombre de tabla con caracteres no permitidos (${tblName})`);
+        continue;
+      }
       if (!map2.has(tblName)) {
         missingTables.push(tblName);
         sqlStatements.push(`-- Falta tabla completa en destino: ${tblName}`);
@@ -422,6 +441,10 @@ async function runSchemaDiff() {
       } else {
         const dstCols = map2.get(tblName)!;
         for (const [colName, colMeta] of colsMap.entries()) {
+          if (!isSafeIdentifier(colName)) {
+            sqlStatements.push(`-- Omitido: columna con caracteres no permitidos (${tblName}.${colName})`);
+            continue;
+          }
           if (!dstCols.has(colName)) {
             missingColumns.push({
               table: tblName,
@@ -429,7 +452,7 @@ async function runSchemaDiff() {
               type: colMeta.type
             });
             const nullClause = colMeta.nullable === 'NO' ? 'NOT NULL' : 'NULL';
-            const defaultClause = colMeta.defaultVal !== null ? `DEFAULT '${colMeta.defaultVal}'` : '';
+            const defaultClause = colMeta.defaultVal !== null ? `DEFAULT '${escapeDefaultLiteral(String(colMeta.defaultVal))}'` : '';
             sqlStatements.push(
               `ALTER TABLE \`${targetDb.value}\`.\`${tblName}\` ADD COLUMN \`${colName}\` ${colMeta.type} ${nullClause} ${defaultClause};`
             );
@@ -471,6 +494,27 @@ async function copySql() {
     setTimeout(() => {
       sqlCopied.value = false;
     }, 2000);
+  }
+}
+
+async function openInBeekeeperEditor() {
+  if (!generatedSql.value) return;
+  const opened = await openQueryInBeekeeper(generatedSql.value);
+  if (opened) {
+    showNotification('Script de migración abierto en una nueva pestaña del editor.', 'success');
+  } else {
+    showNotification('No se pudo abrir el editor nativo de Beekeeper.', 'warning');
+  }
+}
+
+async function saveSqlFile() {
+  if (!generatedSql.value) return;
+  const fileName = `migration_${targetDb.value || 'sync'}_${new Date().toISOString().slice(0, 10)}.sql`;
+  const saved = await exportToFile(generatedSql.value, fileName, [
+    { name: 'SQL Scripts (*.sql)', extensions: ['sql'] }
+  ]);
+  if (saved) {
+    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
   }
 }
 
