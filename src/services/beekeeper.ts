@@ -507,7 +507,7 @@ export async function copyToSystemClipboard(text: string): Promise<boolean> {
 export async function openQueryInBeekeeper(query: string): Promise<boolean> {
   try {
     if (typeof openTab === 'function') {
-      await openTab({ type: 'query', query });
+      await openTab('query', { query });
       return true;
     }
   } catch (err) {
@@ -522,7 +522,7 @@ export async function openQueryInBeekeeper(query: string): Promise<boolean> {
 export async function openTableInBeekeeper(table: string, schema?: string, database?: string): Promise<boolean> {
   try {
     if (typeof openTab === 'function') {
-      await openTab({ type: 'tableTable', table, schema, database });
+      await openTab('tableTable', { table, schema, database });
       return true;
     }
   } catch (err) {
@@ -538,10 +538,9 @@ export async function openTableInBeekeeper(table: string, schema?: string, datab
 export async function confirmAction(message: string, title: string = 'Confirmar acción'): Promise<boolean> {
   try {
     if (typeof pluginConfirm === 'function') {
-      const res = await pluginConfirm({
-        title,
-        message,
-        options: { confirmLabel: 'Continuar', cancelLabel: 'Cancelar' }
+      const res = await pluginConfirm(title, message, {
+        confirmLabel: 'Continuar',
+        cancelLabel: 'Cancelar'
       });
       return Boolean(res);
     }

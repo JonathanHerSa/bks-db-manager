@@ -497,7 +497,7 @@ describe('openQueryInBeekeeper', () => {
     openTab.mockResolvedValue(undefined)
     const result = await openQueryInBeekeeper('SELECT * FROM users;')
     expect(result).toBe(true)
-    expect(openTab).toHaveBeenCalledWith({ type: 'query', query: 'SELECT * FROM users;' })
+    expect(openTab).toHaveBeenCalledWith('query', { query: 'SELECT * FROM users;' })
   })
 
   it('returns false when openTab throws', async () => {
@@ -512,7 +512,7 @@ describe('openTableInBeekeeper', () => {
     openTab.mockResolvedValue(undefined)
     const result = await openTableInBeekeeper('users', 'public', 'mydb')
     expect(result).toBe(true)
-    expect(openTab).toHaveBeenCalledWith({ type: 'tableTable', table: 'users', schema: 'public', database: 'mydb' })
+    expect(openTab).toHaveBeenCalledWith('tableTable', { table: 'users', schema: 'public', database: 'mydb' })
   })
 
   it('returns false on error', async () => {
@@ -527,10 +527,9 @@ describe('confirmAction', () => {
     confirmMock.mockResolvedValue(true)
     const res = await confirmAction('¿Continuar?', 'Alerta')
     expect(res).toBe(true)
-    expect(confirmMock).toHaveBeenCalledWith({
-      title: 'Alerta',
-      message: '¿Continuar?',
-      options: { confirmLabel: 'Continuar', cancelLabel: 'Cancelar' }
+    expect(confirmMock).toHaveBeenCalledWith('Alerta', '¿Continuar?', {
+      confirmLabel: 'Continuar',
+      cancelLabel: 'Cancelar'
     })
   })
 
