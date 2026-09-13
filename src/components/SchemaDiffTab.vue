@@ -103,26 +103,50 @@
         </div>
       </div>
 
-      <!-- Action bar with Swap and Compare -->
-      <div class="flex items-center justify-center gap-3">
-        <button
-          @click="swapDatabases"
-          :disabled="!sourceDb && !targetDb"
-          title="Intercambiar bases de datos y conexiones"
-          class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
-        >
-          <ArrowLeftRight class="w-3.5 h-3.5" />
-          <span>Intercambiar</span>
-        </button>
+      <!-- Settings & Action bar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-900/40 rounded-xl border border-white/[0.06]">
+        <div class="flex items-center gap-3">
+          <label class="text-xs text-slate-400 font-medium">Dialecto SQL Destino:</label>
+          <div class="inline-flex rounded-lg bg-slate-950 p-0.5 border border-white/[0.08]">
+            <button
+              type="button"
+              @click="targetDialect = 'mysql'; regenerateScripts()"
+              class="px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer"
+              :class="targetDialect === 'mysql' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+            >
+              MySQL / MariaDB
+            </button>
+            <button
+              type="button"
+              @click="targetDialect = 'postgres'; regenerateScripts()"
+              class="px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer"
+              :class="targetDialect === 'postgres' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+            >
+              PostgreSQL
+            </button>
+          </div>
+        </div>
 
-        <button
-          @click="runSchemaDiff"
-          :disabled="isComparing || !sourceDb || !targetDb"
-          class="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
-        >
-          <Search class="w-4 h-4" :class="isComparing ? 'animate-spin' : ''" />
-          <span>{{ isComparing ? 'Comparando esquemas...' : 'Comparar Esquemas' }}</span>
-        </button>
+        <div class="flex items-center gap-2.5">
+          <button
+            @click="swapDatabases"
+            :disabled="!sourceDb && !targetDb"
+            title="Intercambiar bases de datos y conexiones"
+            class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
+          >
+            <ArrowLeftRight class="w-3.5 h-3.5" />
+            <span>Intercambiar</span>
+          </button>
+
+          <button
+            @click="runSchemaDiff"
+            :disabled="isComparing || !sourceDb || !targetDb"
+            class="px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
+          >
+            <Search class="w-4 h-4" :class="isComparing ? 'animate-spin' : ''" />
+            <span>{{ isComparing ? 'Comparando esquemas...' : 'Comparar Esquemas' }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -195,15 +219,40 @@
         </div>
       </div>
 
-      <!-- Generated SQL Migration Script -->
-      <div v-if="generatedSql" class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-3 shadow-sm">
-        <div class="flex items-center justify-between">
+      <!-- Generated Migration Script Box -->
+      <div v-if="generatedSql || generatedLaravel" class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-3 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <!-- Format Switcher -->
           <div class="flex items-center gap-2">
-            <FileCode2 class="w-4 h-4 text-sky-400" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">Script SQL de Migración Sugerido</h3>
+            <div class="inline-flex rounded-lg bg-slate-950 p-0.5 border border-white/[0.08]">
+              <button
+                type="button"
+                @click="activeOutputTab = 'sql'"
+                class="px-3 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5"
+                :class="activeOutputTab === 'sql' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+              >
+                <FileCode2 class="w-3.5 h-3.5" />
+                <span>Script SQL DDL</span>
+              </button>
+              <button
+                type="button"
+                @click="activeOutputTab = 'laravel'"
+                class="px-3 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5"
+                :class="activeOutputTab === 'laravel' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+              >
+                <Code2 class="w-3.5 h-3.5" />
+                <span>Laravel Migration</span>
+              </button>
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono">
+              ({{ activeOutputTab === 'sql' ? targetDialect.toUpperCase() : 'PHP 8.2+' }})
+            </span>
           </div>
+
+          <!-- Actions -->
           <div class="flex items-center gap-2">
             <button
+              v-if="activeOutputTab === 'sql'"
               @click="openInBeekeeperEditor"
               class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.98]"
               title="Abrir este script en una nueva pestaña del editor de Beekeeper Studio"
@@ -212,25 +261,25 @@
               <span>Abrir en Editor</span>
             </button>
             <button
-              @click="saveSqlFile"
+              @click="saveFile"
               class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-              title="Guardar script como archivo .sql"
+              :title="activeOutputTab === 'sql' ? 'Guardar script como archivo .sql' : 'Guardar migración como archivo .php'"
             >
               <Download class="w-3.5 h-3.5 text-slate-400" />
-              <span>Guardar .sql</span>
+              <span>{{ activeOutputTab === 'sql' ? 'Guardar .sql' : 'Guardar .php' }}</span>
             </button>
             <button
-              @click="copySql"
+              @click="copyCode"
               class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
             >
-              <Check v-if="sqlCopied" class="w-3.5 h-3.5 text-emerald-400" />
+              <Check v-if="copied" class="w-3.5 h-3.5 text-emerald-400" />
               <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
-              <span>{{ sqlCopied ? '¡Copiado!' : 'Copiar SQL' }}</span>
+              <span>{{ copied ? '¡Copiado!' : (activeOutputTab === 'sql' ? 'Copiar SQL' : 'Copiar PHP') }}</span>
             </button>
           </div>
         </div>
 
-        <pre class="p-4 rounded-lg bg-slate-950 text-emerald-400 font-mono text-xs overflow-x-auto border border-white/[0.06] leading-relaxed"><code>{{ generatedSql }}</code></pre>
+        <pre class="p-4 rounded-lg bg-slate-950 font-mono text-xs overflow-x-auto border border-white/[0.06] leading-relaxed" :class="activeOutputTab === 'sql' ? 'text-emerald-400' : 'text-amber-300'"><code>{{ activeOutputTab === 'sql' ? generatedSql : generatedLaravel }}</code></pre>
       </div>
     </div>
   </div>
@@ -238,7 +287,18 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { GitCompare, Search, CheckCircle2, FileCode2, Copy, Check, ArrowLeftRight, ExternalLink, Download } from 'lucide-vue-next';
+import {
+  GitCompare,
+  Search,
+  CheckCircle2,
+  FileCode2,
+  Code2,
+  Copy,
+  Check,
+  ArrowLeftRight,
+  ExternalLink,
+  Download
+} from 'lucide-vue-next';
 import {
   getSavedConnections,
   inspectSchema,
@@ -257,6 +317,11 @@ import {
   type ConnectionData
 } from '../services/beekeeper';
 import { listDatabasesForConnection } from '../services/connectionAccess';
+import {
+  generateDdlMigration,
+  generateLaravelMigration,
+  type DiffResult
+} from '../services/schemaDiff';
 import SearchableSelect from './SearchableSelect.vue';
 
 const availableConns = ref<SavedConnection[]>([]);
@@ -269,9 +334,12 @@ const targetDbs = ref<string[]>([]);
 const sourceDb = ref('');
 const targetDb = ref('');
 
+const targetDialect = ref<'mysql' | 'postgres'>('mysql');
+const activeOutputTab = ref<'sql' | 'laravel'>('sql');
+
 const isComparing = ref(false);
 const hasDiffResults = ref(false);
-const sqlCopied = ref(false);
+const copied = ref(false);
 
 const diffSummary = ref<{
   missingTables: string[];
@@ -284,6 +352,9 @@ const diffSummary = ref<{
 });
 
 const generatedSql = ref('');
+const generatedLaravel = ref('');
+const cachedDiff = ref<DiffResult | null>(null);
+const cachedSourceColsMap = ref<Map<string, ColumnMeta[]>>(new Map());
 
 async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
   if (!conn) return [];
@@ -292,9 +363,6 @@ async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
     (conn.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() || conn.isBeekeeper)
   );
 
-  // `pass` is omitted: the daemon never sends saved passwords back to the
-  // client, so it resolves the saved one itself server-side from
-  // host/port/user/name when the caller doesn't provide one.
   return listDatabasesForConnection({
     motor: conn.motor,
     host: conn.host,
@@ -316,6 +384,12 @@ async function onConn1Change() {
 }
 
 async function onConn2Change() {
+  if (selectedConn2.value?.motor === 'postgres' || selectedConn2.value?.motor === 'postgresql') {
+    targetDialect.value = 'postgres';
+  } else {
+    targetDialect.value = 'mysql';
+  }
+
   targetDbs.value = await loadDbsForConn(selectedConn2.value);
   if (targetDbs.value.length > 0) {
     if (sourceDb.value && targetDbs.value.includes(sourceDb.value)) {
@@ -339,6 +413,12 @@ async function swapDatabases() {
   sourceDb.value = targetDb.value;
   targetDb.value = tmpDb;
 
+  if (selectedConn2.value?.motor === 'postgres' || selectedConn2.value?.motor === 'postgresql') {
+    targetDialect.value = 'postgres';
+  } else {
+    targetDialect.value = 'mysql';
+  }
+
   if (hasDiffResults.value) {
     await runSchemaDiff();
   }
@@ -350,8 +430,6 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
   // 1. Companion schema inspection (cross-connection support)
   if (conn) {
     try {
-      // `pass` omitted on purpose: the daemon resolves the saved password
-      // server-side from host/port/user/name (see note in `loadDbsForConn`).
       const cols = await inspectSchema({
         motor: conn.motor,
         host: conn.host,
@@ -366,7 +444,7 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
     }
   }
 
-  // 2. Fallback to active Beekeeper connection executeQuery (with fixed FROM clause!)
+  // 2. Fallback to active Beekeeper connection executeQuery
   if (!isSafeIdentifier(db)) {
     console.warn(`Nombre de base de datos con caracteres no permitidos, se omite fallback SQL: ${db}`);
     return [];
@@ -391,10 +469,24 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
   }
 }
 
+function regenerateScripts() {
+  if (!cachedDiff.value) return;
+  generatedSql.value = generateDdlMigration(
+    cachedDiff.value,
+    targetDb.value,
+    sourceDb.value,
+    targetDialect.value,
+    cachedSourceColsMap.value
+  );
+  generatedLaravel.value = generateLaravelMigration(cachedDiff.value);
+}
+
 async function runSchemaDiff() {
   isComparing.value = true;
   hasDiffResults.value = false;
   generatedSql.value = '';
+  generatedLaravel.value = '';
+  cachedDiff.value = null;
 
   if (!isSafeIdentifier(sourceDb.value) || !isSafeIdentifier(targetDb.value)) {
     console.error('Nombre de base de datos origen/destino con caracteres no permitidos.');
@@ -409,10 +501,16 @@ async function runSchemaDiff() {
     ]);
 
     const map1 = new Map<string, Map<string, ColumnMeta>>();
+    const sourceColsMap = new Map<string, ColumnMeta[]>();
+
     for (const c of cols1) {
       if (!map1.has(c.table)) map1.set(c.table, new Map());
       map1.get(c.table)!.set(c.column, c);
+
+      if (!sourceColsMap.has(c.table)) sourceColsMap.set(c.table, []);
+      sourceColsMap.get(c.table)!.push(c);
     }
+    cachedSourceColsMap.value = sourceColsMap;
 
     const map2 = new Map<string, Map<string, ColumnMeta>>();
     for (const c of cols2) {
@@ -421,41 +519,27 @@ async function runSchemaDiff() {
     }
 
     const missingTables: string[] = [];
-    const missingColumns: Array<{ table: string; column: string; type: string }> = [];
+    const missingColumns: Array<{ table: string; column: string; type: string; nullable?: string; defaultVal?: any }> = [];
     const typeChanges: Array<{ table: string; column: string; srcType: string; dstType: string }> = [];
-    const sqlStatements: string[] = [];
-
-    // Escapa un valor DEFAULT literal para incrustarlo entre comillas simples
-    // en el script generado (el nombre/tipo de columna se valida aparte).
-    const escapeDefaultLiteral = (v: string) => v.replace(/\\/g, '\\\\').replace(/'/g, "''");
 
     for (const [tblName, colsMap] of map1.entries()) {
-      if (!isSafeIdentifier(tblName)) {
-        sqlStatements.push(`-- Omitido: nombre de tabla con caracteres no permitidos (${tblName})`);
-        continue;
-      }
+      if (!isSafeIdentifier(tblName)) continue;
+
       if (!map2.has(tblName)) {
         missingTables.push(tblName);
-        sqlStatements.push(`-- Falta tabla completa en destino: ${tblName}`);
-        sqlStatements.push(`CREATE TABLE \`${targetDb.value}\`.\`${tblName}\` LIKE \`${sourceDb.value}\`.\`${tblName}\`;\n`);
       } else {
         const dstCols = map2.get(tblName)!;
         for (const [colName, colMeta] of colsMap.entries()) {
-          if (!isSafeIdentifier(colName)) {
-            sqlStatements.push(`-- Omitido: columna con caracteres no permitidos (${tblName}.${colName})`);
-            continue;
-          }
+          if (!isSafeIdentifier(colName)) continue;
+
           if (!dstCols.has(colName)) {
             missingColumns.push({
               table: tblName,
               column: colName,
-              type: colMeta.type
+              type: colMeta.type,
+              nullable: colMeta.nullable,
+              defaultVal: colMeta.defaultVal
             });
-            const nullClause = colMeta.nullable === 'NO' ? 'NOT NULL' : 'NULL';
-            const defaultClause = colMeta.defaultVal !== null ? `DEFAULT '${escapeDefaultLiteral(String(colMeta.defaultVal))}'` : '';
-            sqlStatements.push(
-              `ALTER TABLE \`${targetDb.value}\`.\`${tblName}\` ADD COLUMN \`${colName}\` ${colMeta.type} ${nullClause} ${defaultClause};`
-            );
           } else {
             const dstMeta = dstCols.get(colName)!;
             if (dstMeta.type.toLowerCase() !== colMeta.type.toLowerCase()) {
@@ -465,19 +549,24 @@ async function runSchemaDiff() {
                 srcType: colMeta.type,
                 dstType: dstMeta.type
               });
-              sqlStatements.push(
-                `ALTER TABLE \`${targetDb.value}\`.\`${tblName}\` MODIFY COLUMN \`${colName}\` ${colMeta.type};`
-              );
             }
           }
         }
       }
     }
 
+    const diff: DiffResult = {
+      missingTables,
+      missingColumns,
+      typeChanges,
+      missingIndexes: [],
+      missingForeignKeys: []
+    };
+
+    cachedDiff.value = diff;
     diffSummary.value = { missingTables, missingColumns, typeChanges };
-    generatedSql.value = sqlStatements.length > 0
-      ? sqlStatements.join('\n')
-      : '-- Los esquemas son idénticos. No se requieren cambios estructurales.';
+
+    regenerateScripts();
     hasDiffResults.value = true;
   } catch (err: any) {
     console.error('Error during schema diff:', err);
@@ -486,13 +575,14 @@ async function runSchemaDiff() {
   }
 }
 
-async function copySql() {
-  if (!generatedSql.value) return;
-  const ok = await copyToSystemClipboard(generatedSql.value);
+async function copyCode() {
+  const textToCopy = activeOutputTab.value === 'sql' ? generatedSql.value : generatedLaravel.value;
+  if (!textToCopy) return;
+  const ok = await copyToSystemClipboard(textToCopy);
   if (ok) {
-    sqlCopied.value = true;
+    copied.value = true;
     setTimeout(() => {
-      sqlCopied.value = false;
+      copied.value = false;
     }, 2000);
   }
 }
@@ -507,11 +597,30 @@ async function openInBeekeeperEditor() {
   }
 }
 
+async function saveFile() {
+  if (activeOutputTab.value === 'sql') {
+    await saveSqlFile();
+  } else {
+    await saveLaravelFile();
+  }
+}
+
 async function saveSqlFile() {
   if (!generatedSql.value) return;
   const fileName = `migration_${targetDb.value || 'sync'}_${new Date().toISOString().slice(0, 10)}.sql`;
   const saved = await exportToFile(generatedSql.value, fileName, [
     { name: 'SQL Scripts (*.sql)', extensions: ['sql'] }
+  ]);
+  if (saved) {
+    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
+  }
+}
+
+async function saveLaravelFile() {
+  if (!generatedLaravel.value) return;
+  const fileName = `${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}_sync_${targetDb.value || 'tables'}.php`;
+  const saved = await exportToFile(generatedLaravel.value, fileName, [
+    { name: 'PHP Files (*.php)', extensions: ['php'] }
   ]);
   if (saved) {
     showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');

@@ -527,6 +527,60 @@ describe('MockDataTab', () => {
     const select = wrapper.findAllComponents({ name: 'SearchableSelect' })[1]
     expect(select.props('modelValue')).toBe('ventas')
   })
+
+  it('populates empty parent tables in cascade when clicking Poblar Todo en Cascada', async () => {
+    fetchTablesForDatabase.mockResolvedValue([
+      { name: 'orders', schema: 'app_db' },
+      { name: 'users', schema: 'app_db' }
+    ])
+    // Table orders with user_id pointing to users (which has 0 rows)
+    fetchColumns.mockImplementation(async (table: string) => {
+      if (table === 'orders') {
+        return [
+          { name: 'id', type: 'int' },
+          { name: 'user_id', type: 'int' },
+          { name: 'total', type: 'decimal(10,2)' }
+        ]
+      }
+      return [
+        { name: 'id', type: 'int' },
+        { name: 'name', type: 'varchar(255)' }
+      ]
+    })
+    fetchTableForeignKeys.mockImplementation(async (table: string) => {
+      if (table === 'orders') {
+        return [{ columnName: 'user_id', referencedTable: 'users', referencedColumn: 'id' }]
+      }
+      return []
+    })
+    fetchTableRowCount.mockResolvedValue(0)
+    fetchTableColumnValues.mockResolvedValue([])
+
+    wrapper = mount(MockDataTab, {
+      props: { initialTable: 'orders' }
+    })
+    for (let i = 0; i < 10; i++) {
+      await flushPromises()
+    }
+
+    expect(wrapper.text()).toContain('Tablas relacionadas vacías detectadas')
+    const cascadeBtn = wrapper.findAll('button').find((b) => b.text().includes('Poblar Todo en Cascada'))
+    expect(cascadeBtn?.exists()).toBe(true)
+
+    // Simulate clicking cascade seeding
+    await cascadeBtn!.trigger('click')
+    for (let i = 0; i < 10; i++) {
+      await flushPromises()
+    }
+
+    expect(confirmAction).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('Poblar Tablas en Cascada')
+    )
+    // Parent table users was populated via INSERT
+    expect(executeQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO `app_db`.`users`'))
+    expect(showNotification).toHaveBeenCalledWith(expect.stringContaining('en cascada con éxito'), 'success')
+  })
 })
 
 

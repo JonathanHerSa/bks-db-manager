@@ -220,5 +220,67 @@ describe('SchemaDiffTab', () => {
     )
     expect(showNotification).toHaveBeenCalledWith(expect.stringContaining('exportado correctamente'), 'success')
   })
+
+  it('switches dialect to PostgreSQL and regenerates Postgres DDL', async () => {
+    inspectSchema
+      .mockResolvedValueOnce([
+        { table: 'users', column: 'id', type: 'int', nullable: 'NO', defaultVal: null },
+        { table: 'users', column: 'bio', type: 'text', nullable: 'YES', defaultVal: null }
+      ])
+      .mockResolvedValueOnce([
+        { table: 'users', column: 'id', type: 'int', nullable: 'NO', defaultVal: null }
+      ])
+
+    await mountTab()
+    const compareBtn = wrapper!.findAll('button').find((b) => b.text().includes('Comparar Esquemas'))
+    await compareBtn!.trigger('click')
+    await flushPromises()
+
+    // Switch dialect button to PostgreSQL
+    const pgBtn = wrapper!.findAll('button').find((b) => b.text().includes('PostgreSQL'))
+    expect(pgBtn?.exists()).toBe(true)
+    await pgBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper!.text()).toContain('ALTER TABLE "users" ADD COLUMN "bio" text NULL;')
+  })
+
+  it('switches to Laravel Migration view and exports .php file', async () => {
+    inspectSchema
+      .mockResolvedValueOnce([
+        { table: 'users', column: 'id', type: 'int', nullable: 'NO', defaultVal: null },
+        { table: 'users', column: 'email', type: 'varchar(255)', nullable: 'NO', defaultVal: null }
+      ])
+      .mockResolvedValueOnce([
+        { table: 'users', column: 'id', type: 'int', nullable: 'NO', defaultVal: null }
+      ])
+
+    await mountTab()
+    const compareBtn = wrapper!.findAll('button').find((b) => b.text().includes('Comparar Esquemas'))
+    await compareBtn!.trigger('click')
+    await flushPromises()
+
+    // Toggle Laravel Migration tab
+    const laravelTabBtn = wrapper!.findAll('button').find((b) => b.text().includes('Laravel Migration'))
+    expect(laravelTabBtn?.exists()).toBe(true)
+    await laravelTabBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper!.text()).toContain('Blueprint')
+    expect(wrapper!.text()).toContain("Schema::table('users'")
+    expect(wrapper!.text()).toContain("string('email')")
+
+    // Save as .php
+    const savePhpBtn = wrapper!.findAll('button').find((b) => b.text().includes('Guardar .php'))
+    expect(savePhpBtn?.exists()).toBe(true)
+    await savePhpBtn!.trigger('click')
+    await flushPromises()
+
+    expect(exportToFile).toHaveBeenCalledWith(
+      expect.stringContaining('Illuminate\\Database\\Migrations\\Migration'),
+      expect.stringContaining('.php'),
+      expect.any(Array)
+    )
+  })
 })
 

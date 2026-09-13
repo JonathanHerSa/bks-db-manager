@@ -21,14 +21,50 @@
     ],
     "menus": [
       {
-        "command": "open-db-manager-tools",
-        "name": "DB Manager Pro",
+        "command": "open-db-manager-snapshots",
+        "name": "DB Manager: Snapshots & Backups",
+        "view": "bks-db-manager",
+        "placement": "menubar.tools"
+      },
+      {
+        "command": "open-db-manager-clone",
+        "name": "DB Manager: Clonado Stream (A ➔ B)",
+        "view": "bks-db-manager",
+        "placement": "menubar.tools"
+      },
+      {
+        "command": "open-db-manager-diff",
+        "name": "DB Manager: Schema Diff & Migraciones",
+        "view": "bks-db-manager",
+        "placement": "menubar.tools"
+      },
+      {
+        "command": "open-db-manager-health",
+        "name": "DB Manager: Auditor de Salud & Rendimiento",
+        "view": "bks-db-manager",
+        "placement": "menubar.tools"
+      },
+      {
+        "command": "open-db-manager-mock",
+        "name": "DB Manager: Generador Mock Data",
+        "view": "bks-db-manager",
+        "placement": "menubar.tools"
+      },
+      {
+        "command": "open-db-manager-docs",
+        "name": "DB Manager: Diccionario de Datos",
+        "view": "bks-db-manager",
+        "placement": "menubar.tools"
+      },
+      {
+        "command": "open-db-manager-discovery",
+        "name": "DB Manager: Auto-Discovery (Docker & .env)",
         "view": "bks-db-manager",
         "placement": "menubar.tools"
       },
       {
         "command": "open-db-manager-table",
-        "name": "DB Manager Pro",
+        "name": "DB Manager: Mock Data para esta tabla",
         "view": "bks-db-manager",
         "placement": "entity.table.context"
       }

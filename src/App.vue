@@ -33,18 +33,18 @@
       </div>
 
       <!-- Segmented Navigation Tab Bar -->
-      <div class="max-w-7xl mx-auto px-6">
-        <nav class="flex items-center gap-1 border-t border-white/[0.04] pt-1">
+      <div class="max-w-7xl mx-auto px-6 overflow-x-auto">
+        <nav class="flex items-center gap-1 border-t border-white/[0.04] pt-1 min-w-max">
           <button
             v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id"
             :class="[
               activeTab === tab.id
-                ? 'text-sky-400 bg-sky-500/10 border-sky-500/30'
+                ? 'text-sky-400 bg-sky-500/10 border-sky-500/30 shadow-sm'
                 : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-white/[0.04]'
             ]"
-            class="px-3.5 py-2 text-xs font-medium border rounded-lg flex items-center gap-2 transition cursor-pointer my-1.5"
+            class="px-3 py-1.5 text-xs font-medium border rounded-lg flex items-center gap-2 transition cursor-pointer my-1.5 whitespace-nowrap"
           >
             <component :is="tab.icon" class="w-4 h-4" />
             <span>{{ tab.label }}</span>
@@ -55,11 +55,13 @@
 
     <!-- Main Content Area -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-6">
+      <SnapshotsTab v-if="activeTab === 'snapshots'" />
       <CloneStreamTab v-if="activeTab === 'clone'" />
       <SchemaDiffTab v-if="activeTab === 'diff'" />
-      <DiscoveryTab v-if="activeTab === 'discovery'" />
+      <HealthAuditorTab v-if="activeTab === 'health'" />
       <MockDataTab v-if="activeTab === 'mock'" :initial-table="initialTable" />
       <DataDictionaryTab v-if="activeTab === 'docs'" />
+      <DiscoveryTab v-if="activeTab === 'discovery'" />
     </main>
 
     <!-- Footer -->
@@ -74,7 +76,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted, defineAsyncComponent } from 'vue';
-import { Database, RefreshCw, GitCompare, Container, Sparkles, BookOpen } from 'lucide-vue-next';
+import {
+  Database,
+  Archive,
+  RefreshCw,
+  GitCompare,
+  Activity,
+  Sparkles,
+  BookOpen,
+  Container
+} from 'lucide-vue-next';
 import {
   fetchCurrentConnection,
   fetchViewContext,
@@ -82,23 +93,27 @@ import {
   type ConnectionData
 } from './services/beekeeper';
 
+const SnapshotsTab = defineAsyncComponent(() => import('./components/SnapshotsTab.vue'));
 const CloneStreamTab = defineAsyncComponent(() => import('./components/CloneStreamTab.vue'));
 const SchemaDiffTab = defineAsyncComponent(() => import('./components/SchemaDiffTab.vue'));
-const DiscoveryTab = defineAsyncComponent(() => import('./components/DiscoveryTab.vue'));
+const HealthAuditorTab = defineAsyncComponent(() => import('./components/HealthAuditorTab.vue'));
 const MockDataTab = defineAsyncComponent(() => import('./components/MockDataTab.vue'));
 const DataDictionaryTab = defineAsyncComponent(() => import('./components/DataDictionaryTab.vue'));
+const DiscoveryTab = defineAsyncComponent(() => import('./components/DiscoveryTab.vue'));
 
-type TabType = 'clone' | 'diff' | 'discovery' | 'mock' | 'docs';
+type TabType = 'snapshots' | 'clone' | 'diff' | 'health' | 'mock' | 'docs' | 'discovery';
 
 const activeTab = ref<TabType>('clone');
 const initialTable = ref<string | null>(null);
 
 const tabs = [
+  { id: 'snapshots' as TabType, label: 'Snapshots & Backups', icon: Archive },
   { id: 'clone' as TabType, label: 'Clonado Stream (A ➔ B)', icon: RefreshCw },
   { id: 'diff' as TabType, label: 'Schema Diff & Migraciones', icon: GitCompare },
-  { id: 'discovery' as TabType, label: 'Auto-Discovery (Docker & .env)', icon: Container },
+  { id: 'health' as TabType, label: 'Salud & Rendimiento', icon: Activity },
   { id: 'mock' as TabType, label: 'Mock Data Generator', icon: Sparkles },
-  { id: 'docs' as TabType, label: 'Diccionario de Datos', icon: BookOpen }
+  { id: 'docs' as TabType, label: 'Diccionario de Datos', icon: BookOpen },
+  { id: 'discovery' as TabType, label: 'Auto-Discovery (Docker & .env)', icon: Container }
 ];
 
 const currentConn = ref<ConnectionData | null>(null);
@@ -107,10 +122,21 @@ onMounted(async () => {
   currentConn.value = await fetchCurrentConnection();
   try {
     const ctx = await fetchViewContext();
-    const table = extractTableFromViewContext(ctx);
-    if (table) {
-      initialTable.value = table;
-      activeTab.value = 'mock';
+    if (ctx) {
+      const cmd = String(ctx.command || ctx.id || ctx || '');
+      if (cmd.includes('snapshots')) activeTab.value = 'snapshots';
+      else if (cmd.includes('clone')) activeTab.value = 'clone';
+      else if (cmd.includes('diff')) activeTab.value = 'diff';
+      else if (cmd.includes('health')) activeTab.value = 'health';
+      else if (cmd.includes('mock')) activeTab.value = 'mock';
+      else if (cmd.includes('docs')) activeTab.value = 'docs';
+      else if (cmd.includes('discovery')) activeTab.value = 'discovery';
+
+      const table = extractTableFromViewContext(ctx);
+      if (table) {
+        initialTable.value = table;
+        activeTab.value = 'mock';
+      }
     }
   } catch (err) {
     console.warn('Error reading view context in App:', err);

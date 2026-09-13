@@ -3,7 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { exec, execFile } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { Transform } from 'stream';
 import { StringDecoder } from 'string_decoder';
@@ -42,11 +42,20 @@ function safeErrorMessage(err, fallback = 'Error ejecutando la operación.') {
 
 const HOME = os.homedir();
 const CONNS_FILE = path.join(HOME, '.db_manager_conns.list');
-const BACKUP_DIR = path.join(HOME, 'Bases de datos', 'Trabajo');
 
-if (!fs.existsSync(BACKUP_DIR)) {
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+export function getBackupDir() {
+  const dir = process.env.BKS_BACKUP_DIR || path.join(HOME, 'Bases de datos', 'Trabajo');
+  if (!fs.existsSync(dir)) {
+    try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  }
+  return dir;
 }
+
+export function isSafeDbName(name) {
+  return typeof name === 'string' && /^[a-zA-Z0-9_\-\.]+$/.test(name);
+}
+
+const BACKUP_DIR = getBackupDir();
 
 // 1. Health check & Tool verification
 app.get('/api/status', async (req, res) => {
@@ -1102,6 +1111,339 @@ app.post('/api/clone/stream', (req, res) => {
       }
     });
   });
+});
+
+// ==========================================
+// 8. Snapshots & Quick Backups Manager
+// ==========================================
+
+// List all snapshots in BACKUP_DIR
+app.get('/api/backup/list', async (req, res) => {
+  try {
+    const backupDir = getBackupDir();
+    if (!fs.existsSync(backupDir)) {
+      return res.json({ ok: true, backups: [], backupDir });
+    }
+    const files = fs.readdirSync(backupDir);
+    const backups = [];
+
+    for (const file of files) {
+      if (!file.match(/\.(sql|sql\.gz|sql\.zst|dump|tar)$/i)) continue;
+
+      const fullPath = path.join(backupDir, file);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (!stat.isFile()) continue;
+
+        let format = 'sql';
+        if (file.endsWith('.sql.zst')) format = 'zstd';
+        else if (file.endsWith('.sql.gz')) format = 'gzip';
+
+        const match = file.match(/^(.+?)_\d{4}-\d{2}-\d{2}/);
+        const database = match ? match[1] : file.replace(/\.(sql|sql\.gz|sql\.zst|dump|tar)$/i, '');
+
+        backups.push({
+          filename: file,
+          filePath: fullPath,
+          sizeBytes: stat.size,
+          mtime: stat.mtime.toISOString(),
+          createdAt: stat.birthtime?.toISOString() || stat.mtime.toISOString(),
+          format,
+          database
+        });
+      } catch (_) {}
+    }
+
+    backups.sort((a, b) => new Date(b.mtime).getTime() - new Date(a.mtime).getTime());
+    res.json({ ok: true, backups, backupDir });
+  } catch (err) {
+    res.status(500).json({ error: safeErrorMessage(err, 'Error al listar snapshots') });
+  }
+});
+
+// Create snapshot
+app.post('/api/backup/create', async (req, res) => {
+  const {
+    motor = 'mysql',
+    host = 'localhost',
+    port,
+    user,
+    pass = '',
+    database,
+    name = '',
+    compressWith = 'zstd'
+  } = req.body;
+
+  if (!database || !isSafeDbName(database)) {
+    return res.status(400).json({ error: 'Nombre de base de datos inválido o requerido.' });
+  }
+
+  const normMotor = normalizeMotor(motor);
+  const engine = getEngine(normMotor);
+  if (!engine || typeof engine.spawnDump !== 'function') {
+    return res.status(400).json({ error: `El motor ${motor} no soporta exportación de snapshots directos.` });
+  }
+
+  const resolvedPort = port || getDefaultPort(normMotor);
+  const resolvedUser = user || getDefaultUser(normMotor);
+  const resolvedPass = resolvePassword(host, resolvedPort, resolvedUser, pass, name);
+
+  let actualCompress = 'none';
+  let ext = 'sql';
+  if (compressWith === 'zstd') {
+    try {
+      await execAsync('which zstd');
+      actualCompress = 'zstd';
+      ext = 'sql.zst';
+    } catch {
+      try {
+        await execAsync('which gzip');
+        actualCompress = 'gzip';
+        ext = 'sql.gz';
+      } catch {
+        actualCompress = 'none';
+        ext = 'sql';
+      }
+    }
+  } else if (compressWith === 'gzip') {
+    try {
+      await execAsync('which gzip');
+      actualCompress = 'gzip';
+      ext = 'sql.gz';
+    } catch {
+      actualCompress = 'none';
+      ext = 'sql';
+    }
+  }
+
+  const backupDir = getBackupDir();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `${database}_${timestamp}.${ext}`;
+  const outPath = path.join(backupDir, filename);
+
+  try {
+    const dumpProc = engine.spawnDump({
+      host,
+      port: resolvedPort,
+      user: resolvedUser,
+      pass: resolvedPass,
+      database
+    });
+
+    const fileStream = fs.createWriteStream(outPath);
+    let compressProc = null;
+
+    if (actualCompress === 'zstd') {
+      compressProc = spawn('zstd', ['-3', '-q']);
+    } else if (actualCompress === 'gzip') {
+      compressProc = spawn('gzip', ['-c']);
+    }
+
+    let dumpStderr = '';
+    dumpProc.stderr?.on('data', (d) => {
+      const msg = d.toString();
+      if (!msg.includes('Using a password on the command line')) {
+        dumpStderr += msg;
+      }
+    });
+
+    if (compressProc) {
+      dumpProc.stdout.pipe(compressProc.stdin);
+      compressProc.stdout.pipe(fileStream);
+      compressProc.stdin.on('error', () => {});
+      dumpProc.stdout.on('error', () => {});
+    } else {
+      dumpProc.stdout.pipe(fileStream);
+      dumpProc.stdout.on('error', () => {});
+    }
+
+    let responded = false;
+    const sendError = (errStatus, errMsg) => {
+      if (responded) return;
+      responded = true;
+      try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch {}
+      res.status(errStatus).json({ error: errMsg });
+    };
+
+    dumpProc.on('error', (err) => {
+      sendError(500, safeErrorMessage(err, 'Error al iniciar dump'));
+    });
+
+    if (compressProc) {
+      compressProc.on('error', (err) => {
+        sendError(500, safeErrorMessage(err, 'Error en proceso de compresión'));
+      });
+    }
+
+    fileStream.on('finish', () => {
+      if (responded) return;
+      responded = true;
+      try {
+        const stat = fs.statSync(outPath);
+        res.json({
+          ok: true,
+          filename,
+          filePath: outPath,
+          sizeBytes: stat.size,
+          format: actualCompress,
+          database,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err) {
+        sendError(500, 'Error al finalizar escritura de snapshot.');
+      }
+    });
+
+    fileStream.on('error', (err) => {
+      sendError(500, safeErrorMessage(err, 'Error al escribir archivo de snapshot'));
+    });
+
+  } catch (err) {
+    try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch {}
+    res.status(500).json({ error: safeErrorMessage(err, 'Error creando snapshot') });
+  }
+});
+
+// Restore snapshot
+app.post('/api/backup/restore', async (req, res) => {
+  const {
+    filename,
+    motor = 'mysql',
+    host = 'localhost',
+    port,
+    user,
+    pass = '',
+    database,
+    name = ''
+  } = req.body;
+
+  if (!filename) {
+    return res.status(400).json({ error: 'Nombre de archivo requerido.' });
+  }
+  if (!database || !isSafeDbName(database)) {
+    return res.status(400).json({ error: 'Base de datos destino inválida o requerida.' });
+  }
+
+  // Security: path traversal prevention
+  const safeFilename = path.basename(filename);
+  const backupDir = getBackupDir();
+  const fullPath = path.join(backupDir, safeFilename);
+
+  if (!fs.existsSync(fullPath)) {
+    return res.status(404).json({ error: 'El archivo de backup no existe.' });
+  }
+
+  const normMotor = normalizeMotor(motor);
+  const engine = getEngine(normMotor);
+  if (!engine || typeof engine.spawnRestore !== 'function') {
+    return res.status(400).json({ error: `El motor ${motor} no soporta restauración directa.` });
+  }
+
+  const resolvedPort = port || getDefaultPort(normMotor);
+  const resolvedUser = user || getDefaultUser(normMotor);
+  const resolvedPass = resolvePassword(host, resolvedPort, resolvedUser, pass, name);
+
+  try {
+    if (typeof engine.ensureDatabase === 'function') {
+      await engine.ensureDatabase({ host, port: resolvedPort, user: resolvedUser, pass: resolvedPass, database }).catch(() => {});
+    }
+
+    const restoreProc = engine.spawnRestore({
+      host,
+      port: resolvedPort,
+      user: resolvedUser,
+      pass: resolvedPass,
+      database
+    });
+
+    let decompressProc = null;
+    if (safeFilename.endsWith('.sql.zst')) {
+      decompressProc = spawn('zstd', ['-d', '-c', fullPath]);
+    } else if (safeFilename.endsWith('.sql.gz')) {
+      decompressProc = spawn('gzip', ['-d', '-c', fullPath]);
+    }
+
+    let restoreStderr = '';
+    restoreProc.stderr?.on('data', (d) => {
+      const msg = d.toString();
+      if (!msg.includes('Using a password on the command line')) {
+        restoreStderr += msg;
+      }
+    });
+
+    let responded = false;
+    const sendError = (status, msg) => {
+      if (responded) return;
+      responded = true;
+      res.status(status).json({ error: msg });
+    };
+
+    if (decompressProc) {
+      decompressProc.stdout.pipe(restoreProc.stdin);
+      decompressProc.stdin.on('error', () => {});
+      restoreProc.stdin.on('error', () => {});
+      decompressProc.on('error', (err) => {
+        sendError(500, safeErrorMessage(err, 'Error al descomprimir snapshot'));
+      });
+    } else {
+      const readStream = fs.createReadStream(fullPath);
+      readStream.pipe(restoreProc.stdin);
+      readStream.on('error', () => {});
+      restoreProc.stdin.on('error', () => {});
+    }
+
+    restoreProc.on('close', (code) => {
+      if (responded) return;
+      responded = true;
+      if (code === 0) {
+        res.json({ ok: true, message: `Snapshot ${safeFilename} restaurado con éxito en ${database}.` });
+      } else {
+        res.status(500).json({ error: sanitizeSecrets(restoreStderr || `Restauración falló con código ${code}`).slice(0, 1000) });
+      }
+    });
+
+    restoreProc.on('error', (err) => {
+      sendError(500, safeErrorMessage(err, 'Error al ejecutar restauración'));
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: safeErrorMessage(err, 'Error restaurando snapshot') });
+  }
+});
+
+// Delete snapshot
+app.delete('/api/backup/delete', (req, res) => {
+  const { filename } = req.body;
+  if (!filename) {
+    return res.status(400).json({ error: 'Nombre de archivo requerido.' });
+  }
+  const safeFilename = path.basename(filename);
+  const backupDir = getBackupDir();
+  const fullPath = path.join(backupDir, safeFilename);
+
+  if (!fs.existsSync(fullPath)) {
+    return res.status(404).json({ error: 'Archivo no encontrado.' });
+  }
+
+  try {
+    fs.unlinkSync(fullPath);
+    res.json({ ok: true, message: `Snapshot ${safeFilename} eliminado.` });
+  } catch (err) {
+    res.status(500).json({ error: safeErrorMessage(err, 'Error al eliminar archivo.') });
+  }
+});
+
+// Download snapshot file
+app.get('/api/backup/download/:filename', (req, res) => {
+  const safeFilename = path.basename(req.params.filename);
+  const backupDir = getBackupDir();
+  const fullPath = path.join(backupDir, safeFilename);
+
+  if (!fs.existsSync(fullPath)) {
+    return res.status(404).json({ error: 'Archivo no encontrado.' });
+  }
+
+  res.download(fullPath, safeFilename);
 });
 
 // Catch-all error handler: prevents Express's default handler from ever returning a

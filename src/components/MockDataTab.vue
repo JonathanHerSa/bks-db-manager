@@ -89,12 +89,23 @@
 
       <!-- Warning banner if any foreign key points to an empty table -->
       <div v-if="emptyFkTables.length > 0" class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
-        <div class="flex items-center gap-2 font-medium text-xs text-amber-300">
-          <AlertTriangle class="w-4 h-4 text-amber-400 shrink-0" />
-          <span>Tablas relacionadas vacías detectadas</span>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2 font-medium text-xs text-amber-300">
+            <AlertTriangle class="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Tablas relacionadas vacías detectadas ({{ emptyFkTables.length }})</span>
+          </div>
+          <button
+            type="button"
+            @click="seedCascadeGraph"
+            :disabled="seedingCascade"
+            class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50 active:scale-[0.98]"
+          >
+            <Sparkles class="w-3.5 h-3.5" :class="seedingCascade ? 'animate-spin' : ''" />
+            <span>{{ seedingCascade ? 'Poblando en Cascada...' : 'Poblar Todo en Cascada (DAG)' }}</span>
+          </button>
         </div>
         <p class="text-[11px] text-slate-300 leading-relaxed">
-          Esta tabla tiene claves foráneas que apuntan a tablas sin registros. Para mantener la integridad referencial y evitar errores de inserción en la base de datos, te sugerimos poblarlas primero:
+          Esta tabla depende de claves foráneas hacia tablas vacías. Puedes usar <strong>Poblar Todo en Cascada</strong> para generar e insertar filas padre automáticamente y sincronizar las claves foráneas, o poblarlas individualmente:
         </p>
         <div class="flex flex-wrap gap-2 pt-1">
           <button
@@ -753,6 +764,103 @@ function generateMockRows() {
 
   mockRows.value = rows;
   generating.value = false;
+}
+
+const seedingCascade = ref(false);
+
+async function seedCascadeGraph() {
+  if (emptyFkTables.value.length === 0) return;
+
+  const confirmed = await confirmAction(
+    `¿Deseas poblar automáticamente ${emptyFkTables.value.length} tabla(s) relacionada(s) (${emptyFkTables.value.join(', ')}) con filas de prueba para resolver las dependencias foráneas?`,
+    'Poblar Tablas en Cascada'
+  );
+  if (!confirmed) return;
+
+  seedingCascade.value = true;
+  try {
+    const parentTables = [...emptyFkTables.value];
+    let seededCount = 0;
+
+    for (const parentTbl of parentTables) {
+      if (!isSafeIdentifier(parentTbl)) continue;
+      const parentCols = await fetchColumns(parentTbl, selectedDb.value);
+      if (!parentCols || parentCols.length === 0) continue;
+
+      const parentCount = 5;
+      const parentCfgs: ColumnConfig[] = parentCols.map((c) => {
+        const n = c.name.toLowerCase();
+        const t = c.type.toLowerCase();
+        const isPrimary = n === 'id' || t.includes('primary');
+        let gen = '';
+        if (n === 'id') gen = 'id_sequence';
+        else if (t.includes('auto_increment')) gen = 'db_auto';
+        else gen = inferDefaultGenerator(c.name, c.type);
+
+        return {
+          name: c.name,
+          type: c.type,
+          generator: gen,
+          isPrimary
+        };
+      });
+
+      const parentRows: any[] = [];
+      for (let r = 0; r < parentCount; r++) {
+        const rowObj: any = {};
+        for (const cfg of parentCfgs) {
+          const val = generateValueForCol(cfg, r);
+          if (val !== null && val !== undefined) {
+            rowObj[cfg.name] = val;
+          }
+        }
+        parentRows.push(rowObj);
+      }
+
+      if (parentRows.length > 0) {
+        const insertCols = Object.keys(parentRows[0]);
+        const valRows = parentRows.map((row) => {
+          const vals = insertCols.map((colName) => {
+            const val = row[colName];
+            if (typeof val === 'number') return val;
+            if (val === null || val === undefined) return 'NULL';
+            const safe = String(val).replace(/\\/g, '\\\\').replace(/'/g, "''");
+            return `'${safe}'`;
+          });
+          return `(${vals.join(', ')})`;
+        });
+
+        const targetTblStr = selectedDb.value
+          ? `\`${selectedDb.value}\`.\`${parentTbl}\``
+          : `\`${parentTbl}\``;
+        const colNamesStr = insertCols.map((c) => `\`${c}\``).join(', ');
+        const insertSql = `INSERT INTO ${targetTblStr} (${colNamesStr}) VALUES \n${valRows.join(',\n')};`;
+
+        await executeQuery(insertSql);
+        seededCount++;
+      }
+    }
+
+    // Refresh all FK configs for current table
+    await Promise.all(
+      columnConfigs.value
+        .filter((c) => c.generator === 'foreign_key' && c.fkTable)
+        .map((c) => refreshFkInfo(c))
+    );
+
+    // Re-generate current table preview with newly available FK values
+    generateMockRows();
+
+    showNotification(
+      `Se poblaron ${seededCount} tabla(s) padre en cascada con éxito. Claves foráneas sincronizadas.`,
+      'success'
+    );
+  } catch (err: any) {
+    console.error('Error seeding cascade:', err);
+    showNotification(err.message || 'Error al poblar en cascada', 'error');
+  } finally {
+    seedingCascade.value = false;
+  }
 }
 
 async function insertIntoDatabase() {

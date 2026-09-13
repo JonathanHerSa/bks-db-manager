@@ -39,8 +39,10 @@ async function mountApp() {
   wrapper = mount(App, {
     global: {
       stubs: {
+        SnapshotsTab: { template: '<div>SnapshotsTab stub</div>' },
         CloneStreamTab: { template: '<div>CloneStreamTab stub</div>' },
         SchemaDiffTab: { template: '<div>SchemaDiffTab stub</div>' },
+        HealthAuditorTab: { template: '<div>HealthAuditorTab stub</div>' },
         DiscoveryTab: { template: '<div>DiscoveryTab stub</div>' },
         MockDataTab: { template: '<div>MockDataTab stub</div>' },
         DataDictionaryTab: { template: '<div>DataDictionaryTab stub</div>' }
@@ -68,14 +70,25 @@ describe('App', () => {
     wrapper = mount(App, {
       global: {
         stubs: {
+          SnapshotsTab: { template: '<div>SnapshotsTab stub</div>' },
           CloneStreamTab: { template: '<div>CloneStreamTab stub</div>' },
           SchemaDiffTab: { template: '<div>SchemaDiffTab stub</div>' },
+          HealthAuditorTab: { template: '<div>HealthAuditorTab stub</div>' },
           DiscoveryTab: { template: '<div>DiscoveryTab stub</div>' },
           MockDataTab: { template: '<div>MockDataTab stub</div>' }
         }
       }
     })
     expect(wrapper.text()).toContain('Detectando...')
+  })
+
+  it('switches to the Snapshots & Backups tab when clicked', async () => {
+    await mountApp()
+    const tabBtn = wrapper!.findAll('button').find((b) => b.text().includes('Snapshots & Backups'))
+    await tabBtn!.trigger('click')
+    await flushPromises()
+    expect(wrapper!.text()).toContain('SnapshotsTab stub')
+    expect(wrapper!.text()).not.toContain('CloneStreamTab stub')
   })
 
   it('switches to the Schema Diff tab when clicked', async () => {
@@ -85,6 +98,14 @@ describe('App', () => {
     await flushPromises()
     expect(wrapper!.text()).toContain('SchemaDiffTab stub')
     expect(wrapper!.text()).not.toContain('CloneStreamTab stub')
+  })
+
+  it('switches to the Salud & Rendimiento tab when clicked', async () => {
+    await mountApp()
+    const tabBtn = wrapper!.findAll('button').find((b) => b.text().includes('Salud & Rendimiento'))
+    await tabBtn!.trigger('click')
+    await flushPromises()
+    expect(wrapper!.text()).toContain('HealthAuditorTab stub')
   })
 
   it('switches to the Mock Data tab when clicked', async () => {
@@ -117,4 +138,17 @@ describe('App', () => {
     await mountApp()
     expect(wrapper!.text()).toContain('MockDataTab stub')
   })
+
+  it('automatically opens Snapshots tab when launched from menubar command', async () => {
+    fetchViewContext.mockResolvedValue({ command: 'open-db-manager-snapshots' })
+    await mountApp()
+    expect(wrapper!.text()).toContain('SnapshotsTab stub')
+  })
+
+  it('automatically opens Health tab when launched from menubar command', async () => {
+    fetchViewContext.mockResolvedValue({ command: 'open-db-manager-health' })
+    await mountApp()
+    expect(wrapper!.text()).toContain('HealthAuditorTab stub')
+  })
 })
+
