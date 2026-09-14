@@ -132,7 +132,7 @@ npm run companion:build  # binario nativo del companion para tu SO -> build/
 Cada push de un tag `vX.Y.Z` dispara [`.github/workflows/release.yml`](.github/workflows/release.yml), que compila y publica **un solo** GitHub Release con:
 
 - `manifest.json` y `bks-db-manager-{version}.zip` (frontend del plugin, siguiendo el proceso de publicación de [Beekeeper Studio Plugins](https://github.com/beekeeper-studio/beekeeper-studio-plugins)).
-- `bks-db-manager-companion-{linux-x64,linux-arm64,darwin-arm64,darwin-x64,win-x64}.{tar.gz,zip}` + su `.sha256` (el instalador nativo del companion, ver [docs/COMPANION.md](docs/COMPANION.md)) — sin versión en el nombre, para poder enlazarlos siempre desde `/releases/latest/download/`.
+- `bks-db-manager-companion-{linux-x64,linux-arm64,darwin-arm64,win-x64}.{tar.gz,zip}` + su `.sha256` (el instalador nativo del companion, ver [docs/COMPANION.md](docs/COMPANION.md)) — sin versión en el nombre, para poder enlazarlos siempre desde `/releases/latest/download/`. macOS Intel (x64) queda pendiente por un bug abierto de Node.js ([nodejs/node#62893](https://github.com/nodejs/node/issues/62893)).
 
 ---
 

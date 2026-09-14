@@ -42,17 +42,19 @@ describe('CompanionOfflineBanner', () => {
     expect(openDownload).toHaveBeenCalledWith('linux-x64');
   });
 
-  test('"¿Otro sistema operativo?" reveals every platform as its own download button', async () => {
+  test('"¿Otro sistema operativo?" reveals every published platform as its own download button', async () => {
     const wrapper = mount(CompanionOfflineBanner);
     await wrapper.findAll('button').find((b) => b.text().includes('¿Otro sistema operativo?'))!.trigger('click');
 
     expect(wrapper.text()).toContain('macOS (Apple Silicon)');
-    expect(wrapper.text()).toContain('macOS (Intel)');
     expect(wrapper.text()).toContain('Windows (x64)');
     expect(wrapper.text()).toContain('Linux (ARM64)');
+    // Intel Mac is intentionally not published yet (open Node.js SEA bug on
+    // that platform, see companionInstall.ts) — must not be offered.
+    expect(wrapper.text()).not.toContain('macOS (Intel)');
 
-    await wrapper.findAll('button').find((b) => b.text().includes('macOS (Intel)'))!.trigger('click');
-    expect(openDownload).toHaveBeenCalledWith('darwin-x64');
+    await wrapper.findAll('button').find((b) => b.text().includes('Linux (ARM64)'))!.trigger('click');
+    expect(openDownload).toHaveBeenCalledWith('linux-arm64');
   });
 
   test('emits "retry" when the Reintentar button is clicked', async () => {

@@ -13,8 +13,9 @@ Ve a la [página de releases](https://github.com/JonathanHerSa/bks-db-manager/re
 | Linux (x64) | `bks-db-manager-companion-linux-x64.tar.gz` |
 | Linux (ARM64) | `bks-db-manager-companion-linux-arm64.tar.gz` |
 | macOS (Apple Silicon) | `bks-db-manager-companion-darwin-arm64.tar.gz` |
-| macOS (Intel) | `bks-db-manager-companion-darwin-x64.tar.gz` |
 | Windows (x64) | `bks-db-manager-companion-win-x64.zip` |
+
+> **macOS Intel (x64) todavía no está disponible.** Los binarios generados con `node --build-sea` fallan (segmentation fault) en cualquier Mac Intel — es un bug abierto de Node.js ([nodejs/node#62893](https://github.com/nodejs/node/issues/62893)), confirmado en este proyecto en tres corridas distintas de CI, no algo específico de este repositorio. Si tienes un Mac Intel, usa la Opción B del README (symlink + `npm install`) mientras tanto, o revisa si ese issue ya se resolvió.
 
 ## 2. Verifica el checksum (opcional pero recomendado)
 

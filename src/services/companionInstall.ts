@@ -5,14 +5,19 @@ const RELEASE_BASE = `https://github.com/${REPO}/releases/latest/download`;
 const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
 const DOCS_URL = `https://github.com/${REPO}/blob/main/docs/COMPANION.md`;
 
-export type CompanionPlatform = 'linux-x64' | 'linux-arm64' | 'darwin-arm64' | 'darwin-x64' | 'win-x64' | 'unknown';
+// NOTE: 'darwin-x64' (Intel Mac) is intentionally not offered as a download
+// target right now — `node --build-sea` output segfaults on every
+// invocation on Intel macOS, a confirmed open Node.js bug
+// (https://github.com/nodejs/node/issues/62893), so
+// .github/workflows/release.yml does not build or publish that asset.
+// Re-add it here once that's fixed upstream and the workflow ships it again.
+export type CompanionPlatform = 'linux-x64' | 'linux-arm64' | 'darwin-arm64' | 'win-x64' | 'unknown';
 
 // Must match the asset names produced by .github/workflows/release.yml.
 const ASSET_NAMES: Record<Exclude<CompanionPlatform, 'unknown'>, string> = {
   'linux-x64': 'bks-db-manager-companion-linux-x64.tar.gz',
   'linux-arm64': 'bks-db-manager-companion-linux-arm64.tar.gz',
   'darwin-arm64': 'bks-db-manager-companion-darwin-arm64.tar.gz',
-  'darwin-x64': 'bks-db-manager-companion-darwin-x64.tar.gz',
   'win-x64': 'bks-db-manager-companion-win-x64.zip'
 };
 
@@ -20,7 +25,6 @@ export const COMPANION_PLATFORM_LABELS: Record<Exclude<CompanionPlatform, 'unkno
   'linux-x64': 'Linux (x64)',
   'linux-arm64': 'Linux (ARM64)',
   'darwin-arm64': 'macOS (Apple Silicon)',
-  'darwin-x64': 'macOS (Intel)',
   'win-x64': 'Windows (x64)'
 };
 
@@ -39,9 +43,9 @@ export function detectPlatform(): CompanionPlatform {
 
     if (raw.includes('win')) return 'win-x64';
     if (raw.includes('mac')) {
-      // Apple Silicon has been the default new Mac since 2020; there is no
-      // reliable synchronous architecture signal available here, so this is
-      // a best guess — Intel users can still pick "macOS (Intel)" manually.
+      // Only Apple Silicon is currently published (see the NOTE above for
+      // why Intel Mac isn't offered yet) — Apple Silicon has also been the
+      // default new Mac since 2020, so this guess is right for most users.
       return 'darwin-arm64';
     }
     if (raw.includes('linux')) {

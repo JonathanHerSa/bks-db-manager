@@ -53,8 +53,12 @@ jobs:
             asset: bks-db-manager-companion-linux-arm64.tar.gz
           - os: macos-latest # Apple Silicon (arm64) as of actions/runner-images' current default
             asset: bks-db-manager-companion-darwin-arm64.tar.gz
-          - os: macos-15-intel # Intel (x64) macOS runner — macos-13 was fully retired 2025-12-08
-            asset: bks-db-manager-companion-darwin-x64.tar.gz
+          # darwin-x64 (Intel Mac) is intentionally NOT in this matrix: `node
+          # --build-sea` output segfaults on every invocation on Intel macOS,
+          # a confirmed open Node.js bug — https://github.com/nodejs/node/issues/62893
+          # (reproduced here on macos-15-intel across 3 separate CI runs,
+          # with and without ad-hoc signing, with and without useCodeCache).
+          # Re-add this target once that's fixed upstream.
           - os: windows-latest
             asset: bks-db-manager-companion-win-x64.zip
     runs-on: ${{ matrix.os }}
