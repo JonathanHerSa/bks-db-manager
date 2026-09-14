@@ -59,7 +59,15 @@ fs.writeFileSync(seaConfigPath, JSON.stringify({
   mainFormat: 'commonjs',
   disableExperimentalSEAWarning: true,
   useSnapshot: false,
-  useCodeCache: true,
+  // Confirmed via a real GitHub Actions run: with useCodeCache:true, the
+  // macos-15-intel build segfaulted on its very first invocation
+  // (`--version`), even with an otherwise-correct native build (no
+  // cross-compilation, no code signing). The embedded V8 code cache is
+  // apparently sensitive to specifics of that runner's CPU that this
+  // project doesn't need to chase down — this is a background daemon
+  // invoked rarely, not a hot CLI, so the small startup-time cost of
+  // skipping the cache is a trivial trade for correctness everywhere.
+  useCodeCache: false,
 }, null, 2), 'utf-8');
 
 console.log('Building the single executable application (node --build-sea)...');
