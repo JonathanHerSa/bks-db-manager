@@ -8,6 +8,7 @@
 // ever touches the real machine, and so we can script command output.
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
+import pkg from '../package.json' with { type: 'json' };
 
 vi.mock('os', () => {
   const homedir = () => '/tmp/fake-home-bks-test';
@@ -97,7 +98,7 @@ describe('GET /api/status', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.version).toBe('1.0.0');
+    expect(res.body.version).toBe(pkg.version);
     expect(Array.isArray(res.body.tools)).toBe(false);
     expect(res.body.tools).toEqual({
       mysql: true,
