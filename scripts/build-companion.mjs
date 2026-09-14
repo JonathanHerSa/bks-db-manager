@@ -73,8 +73,14 @@ if (!fs.existsSync(outputPath)) {
 }
 if (!isWindows) fs.chmodSync(outputPath, 0o755);
 
-if (platform === 'darwin') {
-  console.log('Applying ad-hoc code signature (required on arm64)...');
+// NOTE: confirmed by a real macos-15-intel CI run — ad-hoc signing an x64
+// SEA binary corrupts it (segfaults on the very first invocation), so this
+// must be gated on arch, not just platform. Apple Silicon refuses to run
+// ANY unsigned executable at all (even ad-hoc-signed ones satisfy it),
+// while Intel Mac runs unsigned binaries fine and re-signing after
+// `--build-sea`'s blob injection is actively harmful there.
+if (platform === 'darwin' && os.arch() === 'arm64') {
+  console.log('Applying ad-hoc code signature (required on Apple Silicon)...');
   execFileSync('codesign', ['--force', '--sign', '-', outputPath]);
 }
 
