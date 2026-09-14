@@ -19,7 +19,7 @@
         "entry": "dist/index.html"
       }
     ],
-    "menus": [
+    "menu": [
       {
         "command": "open-db-manager-snapshots",
         "name": "DB Manager: Snapshots & Backups",
