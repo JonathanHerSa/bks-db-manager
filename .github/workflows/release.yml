@@ -126,6 +126,11 @@ jobs:
     needs: [plugin, companion]
     runs-on: ubuntu-latest
     steps:
+      # `gh release create --generate-notes` shells out to `git` to build the
+      # notes from commit history, so this job needs the repo checked out —
+      # confirmed by a real CI run: without this it fails with "fatal: not a
+      # git repository", since download-artifact alone doesn't include .git.
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
