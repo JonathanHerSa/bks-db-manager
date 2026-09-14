@@ -116,10 +116,25 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path build/companion.exe, build/companion.exe.sha256 -DestinationPath ${{ matrix.asset }}
 
+      # A checksum of the packaged archive itself, published as its own
+      # sibling asset (bks-db-manager-companion-<platform>.tar.gz.sha256) —
+      # docs/COMPANION.md instructs users to verify against this. This is
+      # separate from build/companion.sha256, which checks the raw binary
+      # bundled *inside* the archive.
+      - name: Checksum the packaged archive (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+      - name: Checksum the packaged archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: (Get-FileHash "${{ matrix.asset }}" -Algorithm SHA256).Hash.ToLower() + "  ${{ matrix.asset }}" | Out-File -Encoding ascii "${{ matrix.asset }}.sha256"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          path: |
+            ${{ matrix.asset }}
+            ${{ matrix.asset }}.sha256
           if-no-files-found: error
 
   release:
