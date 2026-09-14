@@ -53,7 +53,7 @@ jobs:
             asset: bks-db-manager-companion-linux-arm64.tar.gz
           - os: macos-latest # Apple Silicon (arm64) as of actions/runner-images' current default
             asset: bks-db-manager-companion-darwin-arm64.tar.gz
-          - os: macos-13 # last Intel (x64) macOS runner image
+          - os: macos-15-intel # Intel (x64) macOS runner — macos-13 was fully retired 2025-12-08
             asset: bks-db-manager-companion-darwin-x64.tar.gz
           - os: windows-latest
             asset: bks-db-manager-companion-win-x64.zip
