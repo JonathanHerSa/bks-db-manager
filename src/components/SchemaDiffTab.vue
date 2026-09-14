@@ -11,6 +11,13 @@
       </p>
     </div>
 
+    <!-- Daemon Warning -->
+    <CompanionOfflineBanner
+      v-if="!daemonConnected"
+      reason="no se pueden listar conexiones ni inspeccionar esquemas cruzados"
+      @retry="retryDaemon"
+    />
+
     <!-- Inputs Grid -->
     <div class="space-y-3">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -299,10 +306,12 @@ import {
   ExternalLink,
   Download
 } from 'lucide-vue-next';
+import CompanionOfflineBanner from './CompanionOfflineBanner.vue';
 import {
   getSavedConnections,
   inspectSchema,
   formatConnOption,
+  checkCompanionStatus,
   type SavedConnection,
   type ColumnMeta
 } from '../services/companion';
@@ -325,6 +334,7 @@ import {
 import SearchableSelect from './SearchableSelect.vue';
 
 const availableConns = ref<SavedConnection[]>([]);
+const daemonConnected = ref(false);
 const selectedConn1 = ref<SavedConnection | null>(null);
 const selectedConn2 = ref<SavedConnection | null>(null);
 const currentBksConn = ref<ConnectionData | null>(null);
@@ -634,6 +644,9 @@ onMounted(async () => {
     console.warn('Active connection fetch error:', e);
   }
 
+  const status = await checkCompanionStatus();
+  daemonConnected.value = Boolean(status?.ok);
+
   try {
     availableConns.value = await getSavedConnections();
   } catch (e) {
@@ -663,4 +676,16 @@ onMounted(async () => {
     await onConn2Change();
   }
 });
+
+async function retryDaemon() {
+  const status = await checkCompanionStatus();
+  daemonConnected.value = Boolean(status?.ok);
+  if (daemonConnected.value) {
+    try {
+      availableConns.value = await getSavedConnections();
+    } catch (e) {
+      console.warn('getSavedConnections error:', e);
+    }
+  }
+}
 </script>

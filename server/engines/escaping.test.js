@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escSqlStr, escMysqlIdent, escPgIdent, toJsStringLiteral } from './escaping.js';
+import { escSqlStr, escMysqlSqlStr, escMysqlIdent, escPgIdent, toJsStringLiteral } from './escaping.js';
 
 describe('escSqlStr', () => {
   it('doubles single quotes', () => {
@@ -12,6 +12,28 @@ describe('escSqlStr', () => {
 
   it('defaults to an empty string', () => {
     expect(escSqlStr()).toBe('');
+  });
+});
+
+describe('escMysqlSqlStr', () => {
+  it('doubles single quotes just like escSqlStr', () => {
+    expect(escMysqlSqlStr("o'brien")).toBe("o''brien");
+  });
+
+  it('doubles backslashes so a trailing backslash cannot escape the closing quote', () => {
+    // Without this, embedding the result as `'${value}'` in a MySQL/ClickHouse
+    // string literal would let a value ending in `\` "eat" the closing quote
+    // and let the rest of the SQL text run unquoted.
+    expect(escMysqlSqlStr('db\\')).toBe('db\\\\');
+    expect(escMysqlSqlStr("db\\' OR '1'='1")).toBe("db\\\\'' OR ''1''=''1");
+  });
+
+  it('escapes backslashes before quotes so the two escapes cannot interact', () => {
+    expect(escMysqlSqlStr("\\'")).toBe("\\\\''");
+  });
+
+  it('leaves safe strings untouched', () => {
+    expect(escMysqlSqlStr('app_db')).toBe('app_db');
   });
 });
 

@@ -74,6 +74,18 @@ describe('Backup & Snapshot API Endpoints', () => {
     expect(res.body.error).toContain('inválido');
   });
 
+  test('POST /api/backup/create rejects a database name disguised as a CLI flag', async () => {
+    const res = await request(app)
+      .post('/api/backup/create')
+      .send({
+        database: '--all-databases',
+        motor: 'mysql'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('inválido');
+  });
+
   test('POST /api/backup/restore rejects path traversal attacks', async () => {
     const res = await request(app)
       .post('/api/backup/restore')

@@ -1,6 +1,6 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { escSqlStr } from './escaping.js';
+import { escMysqlSqlStr } from './escaping.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -44,7 +44,7 @@ export default {
   },
 
   async getDatabaseInfo({ host, port, user, pass, database }) {
-    const safeDb = escSqlStr(database || '');
+    const safeDb = escMysqlSqlStr(database || '');
     const sql = `SELECT ROUND(SUM(bytes_on_disk) / (1024 * 1024), 2), COUNT(DISTINCT table) FROM system.parts WHERE database = '${safeDb}' AND active`;
     const args = [...baseArgs({ host, port, user }), '--password', pass || '', '--query', sql];
     const { stdout } = await execFileAsync('clickhouse-client', args);
@@ -53,7 +53,7 @@ export default {
   },
 
   async inspectSchema({ host, port, user, pass, database }) {
-    const safeDb = escSqlStr(database || '');
+    const safeDb = escMysqlSqlStr(database || '');
     const sql = `SELECT table, name, type, 'YES', ifNull(default_expression, 'NULL') FROM system.columns WHERE database = '${safeDb}' ORDER BY table, position FORMAT TSV`;
     const args = [...baseArgs({ host, port, user }), '--password', pass || '', '--query', sql];
     const { stdout } = await execFileAsync('clickhouse-client', args);

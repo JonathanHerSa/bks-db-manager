@@ -80,7 +80,11 @@ export default {
   spawnDump({ host, port, user, pass, database, excludeTables }) {
     const dumpArgs = [
       '-h', host, '-p', String(port), '-U', user, '-d', database,
-      '--format=p', '--no-owner', '--no-privileges'
+      '--format=p', '--no-owner', '--no-privileges',
+      // NOTE (atomicity): emit DROP ... IF EXISTS before each CREATE so
+      // restoring over a non-empty destination replaces objects cleanly
+      // instead of failing "already exists" mid-script (see spawnRestore).
+      '--clean', '--if-exists'
     ];
     if (Array.isArray(excludeTables)) {
       for (const t of excludeTables) {
@@ -91,7 +95,15 @@ export default {
   },
 
   spawnRestore({ host, port, user, pass, database }) {
-    const dstArgs = ['-h', host, '-p', String(port), '-U', user, '-d', database];
+    const dstArgs = [
+      '-h', host, '-p', String(port), '-U', user, '-d', database,
+      // NOTE (atomicity): without these, psql keeps executing after a failed
+      // statement and still exits 0, leaving the destination half-restored
+      // with no error surfaced to the caller. --single-transaction wraps the
+      // whole script in one BEGIN/COMMIT and ON_ERROR_STOP=1 aborts (and rolls
+      // back) on the first real error instead of limping through the rest.
+      '--single-transaction', '-v', 'ON_ERROR_STOP=1'
+    ];
     return spawn('psql', dstArgs, { env: { ...process.env, PGPASSWORD: pass } });
   }
 };

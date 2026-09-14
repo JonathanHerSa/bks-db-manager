@@ -27,6 +27,13 @@
       </div>
     </div>
 
+    <!-- Daemon Warning -->
+    <CompanionOfflineBanner
+      v-if="!daemonConnected"
+      reason="Docker y Auto-Discovery no pueden escanear"
+      @retry="refreshAll"
+    />
+
     <!-- Engine Filter Bar -->
     <div class="p-3 rounded-xl bg-slate-900/40 border border-white/[0.06] flex items-center gap-1.5 overflow-x-auto">
       <span class="text-xs text-slate-500 flex items-center gap-1.5 px-2 font-medium">
@@ -360,10 +367,12 @@ import {
   HardDrive,
   Filter
 } from 'lucide-vue-next';
+import CompanionOfflineBanner from './CompanionOfflineBanner.vue';
 import {
   getDockerContainers,
   getDiscoveredProjects,
   saveConnectionToBeekeeper,
+  checkCompanionStatus,
   type DockerContainer,
   type DiscoveredProject
 } from '../services/companion';
@@ -372,6 +381,7 @@ import { getDefaultPort } from '../../shared/dbEngines.js';
 
 const loading = ref(false);
 const loadingProjects = ref(false);
+const daemonConnected = ref(false);
 const dockerContainers = ref<DockerContainer[]>([]);
 const projects = ref<DiscoveredProject[]>([]);
 const copiedId = ref<string | null>(null);
@@ -480,9 +490,15 @@ async function refreshProjects() {
   }
 }
 
+async function checkDaemon() {
+  const status = await checkCompanionStatus();
+  daemonConnected.value = Boolean(status?.ok);
+}
+
 async function refreshAll() {
   loading.value = true;
   try {
+    await checkDaemon();
     const [containers, projs] = await Promise.all([
       getDockerContainers(),
       getDiscoveredProjects({

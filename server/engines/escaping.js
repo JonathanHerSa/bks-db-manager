@@ -9,6 +9,19 @@ export function escSqlStr(str = '') {
   return String(str).replace(/'/g, "''");
 }
 
+/**
+ * Same as escSqlStr, but also doubles backslashes first. Unlike Postgres
+ * (with the default standard_conforming_strings=on), MySQL and ClickHouse
+ * treat `\` as an escape character inside a quoted string literal, so a
+ * value ending in an odd number of backslashes could otherwise "eat" the
+ * closing quote and break out of the literal (e.g. `db\` followed by
+ * attacker-controlled SQL). Use this instead of escSqlStr for any value
+ * embedded in a MySQL/MariaDB/TiDB or ClickHouse string literal.
+ */
+export function escMysqlSqlStr(str = '') {
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "''");
+}
+
 export function escMysqlIdent(str = '') {
   return String(str).replace(/`/g, '``');
 }

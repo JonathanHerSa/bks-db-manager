@@ -24,15 +24,7 @@
     </div>
 
     <!-- Daemon Warning -->
-    <div v-if="!daemonConnected" class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <AlertTriangle class="w-4 h-4 text-amber-400 shrink-0" />
-        <span>El Companion Daemon no responde en el puerto 58765. Ejecuta <code>npm run server</code> en la carpeta del plugin.</span>
-      </div>
-      <button @click="checkDaemon" class="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 rounded-md border border-amber-500/40 text-xs font-medium transition cursor-pointer">
-        Reintentar
-      </button>
-    </div>
+    <CompanionOfflineBanner v-if="!daemonConnected" @retry="checkDaemon" />
 
     <!-- Connections Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -498,7 +490,6 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import {
   RefreshCw,
   Shield,
-  AlertTriangle,
   Play,
   Square,
   CheckCircle,
@@ -508,6 +499,7 @@ import {
   Check,
   Trash2
 } from 'lucide-vue-next';
+import CompanionOfflineBanner from './CompanionOfflineBanner.vue';
 import {
   checkCompanionStatus,
   getSavedConnections,

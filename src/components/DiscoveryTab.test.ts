@@ -4,13 +4,15 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 const getDockerContainers = vi.fn()
 const getDiscoveredProjects = vi.fn()
 const saveConnectionToBeekeeper = vi.fn()
+const checkCompanionStatus = vi.fn()
 const copyToSystemClipboard = vi.fn()
 const showNotification = vi.fn()
 
 vi.mock('../services/companion', () => ({
   getDockerContainers: (...args: any[]) => getDockerContainers(...args),
   getDiscoveredProjects: (...args: any[]) => getDiscoveredProjects(...args),
-  saveConnectionToBeekeeper: (...args: any[]) => saveConnectionToBeekeeper(...args)
+  saveConnectionToBeekeeper: (...args: any[]) => saveConnectionToBeekeeper(...args),
+  checkCompanionStatus: (...args: any[]) => checkCompanionStatus(...args)
 }))
 
 vi.mock('../services/beekeeper', () => ({
@@ -67,6 +69,7 @@ beforeEach(() => {
   getDockerContainers.mockReset().mockResolvedValue([])
   getDiscoveredProjects.mockReset().mockResolvedValue([])
   saveConnectionToBeekeeper.mockReset().mockResolvedValue({ success: true, message: 'Guardado' })
+  checkCompanionStatus.mockReset().mockResolvedValue({ ok: true, version: '1.0.0', tools: {} })
   copyToSystemClipboard.mockReset().mockResolvedValue(true)
   showNotification.mockReset()
 })
@@ -86,6 +89,26 @@ describe('DiscoveryTab', () => {
   it('renders an empty state when nothing is found', async () => {
     await mountDiscovery()
     expect(wrapper!.text()).toContain('No se detectaron contenedores de bases de datos en ejecución.')
+  })
+
+  it('shows the companion-offline banner when the daemon does not respond', async () => {
+    checkCompanionStatus.mockResolvedValue(null)
+    await mountDiscovery()
+    expect(wrapper!.text()).toContain('El Companion Daemon no responde en el puerto 58765')
+    expect(wrapper!.text()).toContain('npm run daemon:install')
+  })
+
+  it('hides the companion-offline banner once the daemon responds again', async () => {
+    checkCompanionStatus.mockResolvedValue(null)
+    await mountDiscovery()
+    expect(wrapper!.text()).toContain('El Companion Daemon no responde')
+
+    checkCompanionStatus.mockResolvedValue({ ok: true, version: '1.0.0', tools: {} })
+    const retryBtn = wrapper!.findAll('button').find((b) => b.text().includes('Reintentar'))
+    expect(retryBtn).toBeTruthy()
+    await retryBtn!.trigger('click')
+    await flushPromises()
+    expect(wrapper!.text()).not.toContain('El Companion Daemon no responde')
   })
 
   it('renders discovered docker containers', async () => {

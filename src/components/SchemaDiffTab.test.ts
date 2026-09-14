@@ -4,6 +4,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 const getSavedConnections = vi.fn()
 const getDatabasesList = vi.fn()
 const inspectSchema = vi.fn()
+const checkCompanionStatus = vi.fn()
 
 const fetchDatabases = vi.fn()
 const fetchCurrentConnection = vi.fn()
@@ -19,7 +20,8 @@ vi.mock('../services/companion', async (importOriginal) => {
     ...actual,
     getSavedConnections: (...a: any[]) => getSavedConnections(...a),
     getDatabasesList: (...a: any[]) => getDatabasesList(...a),
-    inspectSchema: (...a: any[]) => inspectSchema(...a)
+    inspectSchema: (...a: any[]) => inspectSchema(...a),
+    checkCompanionStatus: (...a: any[]) => checkCompanionStatus(...a)
   }
 })
 
@@ -48,6 +50,7 @@ beforeEach(() => {
   getSavedConnections.mockReset().mockResolvedValue([dockerConn, prodConn])
   getDatabasesList.mockReset().mockResolvedValue(['app_db'])
   inspectSchema.mockReset().mockResolvedValue([])
+  checkCompanionStatus.mockReset().mockResolvedValue({ ok: true, version: '1.0.0', tools: {} })
   fetchDatabases.mockReset().mockResolvedValue(['app_db'])
   fetchCurrentConnection.mockReset().mockResolvedValue({ connectionName: 'Docker', databaseName: 'app_db', databaseType: 'mysql' })
   executeQuery.mockReset().mockResolvedValue({ results: [{ rows: [] }] })
@@ -75,6 +78,26 @@ describe('SchemaDiffTab', () => {
     expect(fetchCurrentConnection).toHaveBeenCalled()
     // source uses the SDK-first path since Docker matches the active connection
     expect(fetchDatabases).toHaveBeenCalled()
+  })
+
+  it('shows the companion-offline banner when the daemon does not respond', async () => {
+    checkCompanionStatus.mockResolvedValue(null)
+    await mountTab()
+    expect(wrapper!.text()).toContain('El Companion Daemon no responde en el puerto 58765')
+    expect(wrapper!.text()).toContain('npm run daemon:install')
+  })
+
+  it('hides the companion-offline banner once the daemon responds again', async () => {
+    checkCompanionStatus.mockResolvedValue(null)
+    await mountTab()
+    expect(wrapper!.text()).toContain('El Companion Daemon no responde')
+
+    checkCompanionStatus.mockResolvedValue({ ok: true, version: '1.0.0', tools: {} })
+    const retryBtn = wrapper!.findAll('button').find((b) => b.text().includes('Reintentar'))
+    expect(retryBtn).toBeTruthy()
+    await retryBtn!.trigger('click')
+    await flushPromises()
+    expect(wrapper!.text()).not.toContain('El Companion Daemon no responde')
   })
 
   it('reports missing tables, missing columns and type mismatches', async () => {

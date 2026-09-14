@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
-import { escSqlStr, escMysqlIdent } from './escaping.js';
+import { escMysqlSqlStr, escMysqlIdent } from './escaping.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -28,14 +28,18 @@ export default {
 
   async listTables({ host, port, user, pass, database }) {
     const env = { ...process.env, MYSQL_PWD: pass };
-    const args = ['-h', String(host), '-P', String(port), '-u', String(user), String(database), '-N', '-s', '-e', 'SHOW TABLES;'];
+    // NOTE (security): `database` is the mysql CLI's bare positional db_name
+    // argument, so it must come after a `--` separator — otherwise a value
+    // like "--all-databases" would be parsed as an option instead of a
+    // database name, letting a caller escape the intended scope.
+    const args = ['-h', String(host), '-P', String(port), '-u', String(user), '-N', '-s', '-e', 'SHOW TABLES;', '--', String(database)];
     const { stdout } = await execFileAsync('mysql', args, { env });
     return stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   },
 
   async getDatabaseInfo({ host, port, user, pass, database }) {
     const env = { ...process.env, MYSQL_PWD: pass };
-    const safeDb = escSqlStr(database || '');
+    const safeDb = escMysqlSqlStr(database || '');
     const sql = `SELECT ROUND(SUM(data_length + index_length) / (1024 * 1024), 2) AS mb, COUNT(*) AS tables FROM information_schema.TABLES WHERE table_schema='${safeDb}';`;
     const args = ['-h', String(host), '-P', String(port), '-u', String(user), '-N', '-s', '-e', sql];
     const { stdout } = await execFileAsync('mysql', args, { env });
@@ -45,7 +49,7 @@ export default {
 
   async inspectSchema({ host, port, user, pass, database }) {
     const env = { ...process.env, MYSQL_PWD: pass };
-    const sql = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, IFNULL(COLUMN_DEFAULT, 'NULL') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${escSqlStr(database || '')}' ORDER BY TABLE_NAME, ORDINAL_POSITION;`;
+    const sql = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, IFNULL(COLUMN_DEFAULT, 'NULL') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${escMysqlSqlStr(database || '')}' ORDER BY TABLE_NAME, ORDINAL_POSITION;`;
     const args = ['-h', String(host), '-P', String(port), '-u', String(user), '-N', '-s', '-e', sql];
     const { stdout } = await execFileAsync('mysql', args, { env });
     const lines = stdout.trim().split('\n').filter(Boolean);
@@ -68,17 +72,16 @@ export default {
   async ensureDatabase({ host, port, user, pass, database }) {
     const env = { ...process.env, MYSQL_PWD: pass || '' };
     const ident = escMysqlIdent(database || '');
-    try {
-      await execFileAsync('mysql', [
-        '-h', String(host), '-P', String(port), '-u', String(user),
-        '-e', `SET GLOBAL max_allowed_packet=1073741824; CREATE DATABASE IF NOT EXISTS \`${ident}\` CHARACTER SET utf8mb4;`
-      ], { env });
-    } catch {
-      await execFileAsync('mysql', [
-        '-h', String(host), '-P', String(port), '-u', String(user),
-        '-e', `CREATE DATABASE IF NOT EXISTS \`${ident}\` CHARACTER SET utf8mb4;`
-      ], { env });
-    }
+    // NOTE (security): this used to also run `SET GLOBAL max_allowed_packet=...`
+    // here. That mutates server-wide state affecting every other connection to
+    // the instance (not just this session), requires SUPER/SYSTEM_VARIABLES_ADMIN,
+    // and fails outright on managed services like RDS/Aurora. The per-session
+    // `--max-allowed-packet=512M` flag already passed to spawnDump/spawnRestore
+    // is sufficient, so this only ever needs the idempotent CREATE DATABASE.
+    await execFileAsync('mysql', [
+      '-h', String(host), '-P', String(port), '-u', String(user),
+      '-e', `CREATE DATABASE IF NOT EXISTS \`${ident}\` CHARACTER SET utf8mb4;`
+    ], { env });
   },
 
   spawnDump({ host, port, user, pass, database, excludeTables }) {
@@ -93,14 +96,18 @@ export default {
       '--net-buffer-length=32768',
       '--no-tablespaces',
       '--routines',
-      '--triggers',
-      database
+      '--triggers'
     ];
     if (Array.isArray(excludeTables)) {
       for (const t of excludeTables) {
         dumpArgs.push(`--ignore-table=${database}.${t}`);
       }
     }
+    // NOTE (security): `database` is mysqldump's bare positional db_name
+    // argument. It must be the last argv element, after a `--` separator and
+    // after every `--ignore-table=` option, so a value like "--all-databases"
+    // can never be parsed as a flag instead of a database name.
+    dumpArgs.push('--', database);
     return spawn('mysqldump', dumpArgs, { env: { ...process.env, MYSQL_PWD: pass } });
   },
 
@@ -115,6 +122,7 @@ export default {
       '--max-allowed-packet=512M',
       '--init-command=SET SESSION foreign_key_checks=0; SET SESSION unique_checks=0; SET SESSION sql_log_bin=0;',
       '--force',
+      '--',
       database
     ];
     return spawn('mysql', dstArgs, { env: { ...process.env, MYSQL_PWD: pass } });

@@ -112,15 +112,14 @@ describe('mysqlFamily.ensureDatabase', () => {
     expect(options.env.MYSQL_PWD).toBe('x');
   });
 
-  test('retries with a simpler statement if the max_allowed_packet variant fails', async () => {
-    let call = 0;
-    execFile.mockImplementation((file, args, options, callback) => {
-      call += 1;
-      if (call === 1) return callback(new Error('permission denied for SET GLOBAL'));
-      callback(null, '', '');
-    });
+  test('never mutates server-wide settings (no SET GLOBAL) and only needs a single call', async () => {
+    execFile.mockImplementation((file, args, options, callback) => callback(null, '', ''));
     await expect(mysqlFamily.ensureDatabase({ host: 'h', port: 3306, user: 'root', pass: 'x', database: 'db' })).resolves.toBeUndefined();
-    expect(execFile).toHaveBeenCalledTimes(2);
+    expect(execFile).toHaveBeenCalledTimes(1);
+    const [, args] = execFile.mock.calls[0];
+    const sqlArg = args[args.length - 1];
+    expect(sqlArg).not.toContain('SET GLOBAL');
+    expect(sqlArg).toContain('CREATE DATABASE IF NOT EXISTS');
   });
 });
 
