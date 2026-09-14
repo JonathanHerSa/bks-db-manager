@@ -1,6 +1,6 @@
 {
   "name": "bks-db-manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Beekeeper Studio Plugin for Live Stream Cloning, Smart Backups, Schema Diff, Docker/.env Discovery and Mock Data Generation",
   "license": "GPL-3.0-or-later",
   "author": {

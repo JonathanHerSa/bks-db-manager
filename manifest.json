@@ -1,7 +1,7 @@
 {
   "id": "bks-db-manager",
   "name": "DB Manager Pro",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "5.4.0",
   "description": "Live stream cloning (A -> B), smart sanitization (strip DEFINER), schema diff, docker & .env discovery, and mock data generator.",
   "author": {
