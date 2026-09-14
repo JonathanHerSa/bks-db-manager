@@ -16,3 +16,6 @@ graphify-out/
 # Beekeeper build bundle if generated in root
 main.js
 
+# scripts/build-companion.mjs output (SEA companion binaries, ~140MB each)
+build/
+

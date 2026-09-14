@@ -10,17 +10,39 @@ import { StringDecoder } from 'string_decoder';
 import { normalizeMotor, getDefaultPort, supportsCloneStream } from '../shared/dbEngines.js';
 import { getEngine } from './engines/index.js';
 import { escSqlStr } from './engines/escaping.js';
+import pkg from '../package.json' with { type: 'json' };
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 const app = express();
 const PORT = process.env.BKS_DB_MANAGER_PORT || 58765;
 
-// NOTE (security): cors() with no options reflects any Origin. This daemon executes
-// system commands, reads local files and dumps databases, so this is intentionally
-// flagged for a product decision (see audit notes) rather than silently changed here,
-// since Beekeeper Studio plugin iframes may not send a whitelistable Origin header.
-app.use(cors());
+// `__COMPANION_VERSION__` is injected at build time by scripts/build-companion.mjs
+// (esbuild --define) when bundling the SEA companion binary, since a bundled
+// single file can't resolve a relative `../package.json` import at runtime.
+// In dev (`node server/serve.js` directly, no bundler involved) that global
+// never exists — `typeof` on an undeclared identifier is safe — so it falls
+// back to the real package.json import instead.
+export const COMPANION_VERSION = typeof __COMPANION_VERSION__ !== 'undefined' ? __COMPANION_VERSION__ : pkg.version;
+
+// NOTE (security): cors() with no options used to reflect any Origin. This daemon
+// executes system commands, reads local files and dumps/restores databases with no
+// authentication of its own, so an open CORS policy let any web page running in the
+// user's regular browser drive it via a simple cross-origin fetch() (CSRF/SSRF).
+// Requests with no Origin header (or "null", e.g. Beekeeper Studio's plugin webview
+// loading the built plugin from a local file/custom-protocol context) are allowed,
+// since those aren't real cross-site browser attackers; only an explicit, known
+// third-party Origin (a real website) is rejected. During development the Vite dev
+// server origin is also allowed.
+const ALLOWED_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173']);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || origin === 'null' || ALLOWED_ORIGINS.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  }
+}));
 app.use(express.json({ limit: '2mb' }));
 
 // Redacts anything that looks like a credential/password from strings before they are
@@ -52,7 +74,12 @@ export function getBackupDir() {
 }
 
 export function isSafeDbName(name) {
-  return typeof name === 'string' && /^[a-zA-Z0-9_\-\.]+$/.test(name);
+  // NOTE (security): must not start with "-": a leading hyphen is still
+  // matched by the character class below, so without this a value like
+  // "--all-databases" passed as `database` used to be considered "safe" and
+  // then get parsed by the mysql/mysqldump CLI as an option instead of a
+  // database name, letting a caller escape the intended scope.
+  return typeof name === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_\-\.]*$/.test(name);
 }
 
 const BACKUP_DIR = getBackupDir();
@@ -69,13 +96,18 @@ app.get('/api/status', async (req, res) => {
       status[tool] = false;
     }
   }
-  res.json({ ok: true, version: '1.0.0', tools: status });
+  res.json({ ok: true, version: COMPANION_VERSION, tools: status });
 });
 
 function getKnownPasswords() {
   const map = new Map();
   try {
     if (fs.existsSync(CONNS_FILE)) {
+      // NOTE (security): this file stores plaintext credentials but is created
+      // externally (by hand or by another tool), not by this daemon, so it may
+      // not have restrictive permissions. Tighten them defensively on every
+      // read instead of trusting whatever the file already had.
+      try { fs.chmodSync(CONNS_FILE, 0o600); } catch {}
       const lines = fs.readFileSync(CONNS_FILE, 'utf-8').split('\n').filter(Boolean);
       for (const line of lines) {
         const [name, motor, host, port, user, pass] = line.split('|');
@@ -97,9 +129,12 @@ function resolvePassword(host, port, user, pass = '', name = '') {
   const map = getKnownPasswords();
   if (map.has(`${host}:${port}:${user}`)) return map.get(`${host}:${port}:${user}`);
   if (name && map.has(String(name).trim().toLowerCase())) return map.get(String(name).trim().toLowerCase());
-  for (const [key, val] of map.entries()) {
-    if (key.startsWith(`${host}:${port}:`)) return val;
-  }
+  // NOTE (security): this used to also fall back to "the first saved password
+  // for this host:port, regardless of user" when neither of the above matched
+  // exactly. That could hand back a different account's credentials (e.g.
+  // resolving `root`'s password for a request asking about a `readonly`
+  // user on the same host:port). Better to return nothing than the wrong
+  // password.
   return '';
 }
 
@@ -216,6 +251,7 @@ app.get('/api/conns', async (req, res) => {
     const customConns = [];
 
     if (fs.existsSync(CONNS_FILE)) {
+      try { fs.chmodSync(CONNS_FILE, 0o600); } catch {}
       const lines = fs.readFileSync(CONNS_FILE, 'utf-8').split('\n').filter(Boolean);
       lines.forEach((line, idx) => {
         const [name, motorRaw, host, port, user, pass] = line.split('|');
@@ -409,7 +445,7 @@ app.get('/api/docker', async (req, res) => {
 
     res.json({ containers });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: safeErrorMessage(err, 'No se pudo listar contenedores Docker.') });
   }
 });
 
@@ -891,6 +927,16 @@ app.post('/api/clone/stream', (req, res) => {
     return res.status(400).json({ error: `Clonado en streaming no soportado para el motor "${motor}".` });
   }
 
+  if (!srcDb || !isSafeDbName(srcDb)) {
+    return res.status(400).json({ error: 'Base de datos origen inválida o requerida.' });
+  }
+  if (!dstDb || !isSafeDbName(dstDb)) {
+    return res.status(400).json({ error: 'Base de datos destino inválida o requerida.' });
+  }
+  if (!Array.isArray(excludeTables) || !excludeTables.every((t) => isSafeDbName(t))) {
+    return res.status(400).json({ error: 'Lista de tablas excluidas inválida.' });
+  }
+
   // Prevent Node.js from terminating long-running streaming requests
   req.setTimeout(0);
   res.setTimeout(0);
@@ -942,9 +988,16 @@ app.post('/api/clone/stream', (req, res) => {
   // Auto-create destination database. Delegated to the engine adapter
   // (server/engines/*.js) — see shared/dbEngines.js for which motors resolve
   // to which adapter.
+  let earlyFinished = false;
   engine.ensureDatabase({ host: dstHost, port: dstPort, user: dstUser, pass: dstPass, database: dstDb }).catch((err) => {
     sendEvent('log', { message: `Aviso al verificar/crear base destino: ${safeErrorMessage(err, 'no se pudo verificar/crear automáticamente')}` });
   }).finally(() => {
+   // NOTE (reliability): a synchronous throw anywhere in this block (e.g. an
+   // engine adapter bug) used to leave this promise chain's `.finally()`
+   // without a `.catch()`, producing an unhandled rejection that crashes the
+   // daemon process while the SSE connection hangs open with the client never
+   // receiving an `error`/`complete` event.
+   try {
 
     sendEvent('log', { message: `Base de datos destino verificada: ${dstDb}` });
 
@@ -996,6 +1049,12 @@ app.post('/api/clone/stream', (req, res) => {
 
     let dstStderrLines = [];
     let srcStderrLines = [];
+    // NOTE (reliability): the restore CLI (`mysql --force`, see
+    // mysqlFamily.spawnRestore) is deliberately told to keep going after a
+    // failed statement, but its process can still exit 0 overall — silently
+    // reporting a partial/corrupted restore as a full success. Track whether
+    // any real error line was seen so `finish()` can override that.
+    let dstHadRealError = false;
 
     dstProc.stderr.on('data', (d) => {
       const msg = d.toString();
@@ -1004,6 +1063,7 @@ app.post('/api/clone/stream', (req, res) => {
           const tableName = msg.match(/in table '([^']+)'/)?.[1] || 'telemetría';
           sendEvent('log', { message: `[RESTORE AVISO] Tabla '${tableName}': fila con columna virtual omitida (MySQL 8.0 evalúa la columna automáticamente).` });
         } else {
+          if (/\bERROR\b/.test(msg)) dstHadRealError = true;
           sendEvent('log', { message: `[RESTORE] ${msg.trim()}` });
         }
         const lines = msg.split('\n').map(l => l.trim()).filter(Boolean);
@@ -1081,7 +1141,7 @@ app.post('/api/clone/stream', (req, res) => {
       .pipe(dstProc.stdin);
 
     dstProc.on('close', (code) => {
-      if (code === 0) {
+      if (code === 0 && !dstHadRealError) {
         finish(true);
       } else {
         finish(false);
@@ -1110,6 +1170,14 @@ app.post('/api/clone/stream', (req, res) => {
         try { dstProc.kill('SIGTERM'); } catch {}
       }
     });
+   } catch (err) {
+     if (!earlyFinished) {
+       earlyFinished = true;
+       clearInterval(progressInterval);
+       sendEvent('error', { message: safeErrorMessage(err, 'Error inesperado al iniciar el clonado.'), details: [] });
+       setTimeout(() => { try { res.end(); } catch {} }, 500);
+     }
+   }
   });
 });
 
@@ -1395,7 +1463,16 @@ app.post('/api/backup/restore', async (req, res) => {
     restoreProc.on('close', (code) => {
       if (responded) return;
       responded = true;
-      if (code === 0) {
+      // NOTE (reliability): MySQL's restore CLI runs with `--force` (continue
+      // after a failed statement, see mysqlFamily.spawnRestore) and can still
+      // exit 0 overall, so a genuine "ERROR ..." line in stderr must also be
+      // treated as failure — otherwise a half-restored database gets reported
+      // as a full success. "ERROR 3105"/generated-column lines are a known
+      // benign MySQL 8.0 warning (a virtual column row was skipped), not a
+      // real failure.
+      const hasRealError = /\bERROR\b/.test(restoreStderr) &&
+        !(restoreStderr.includes('ERROR 3105') || restoreStderr.includes('generated column'));
+      if (code === 0 && !hasRealError) {
         res.json({ ok: true, message: `Snapshot ${safeFilename} restaurado con éxito en ${database}.` });
       } else {
         res.status(500).json({ error: sanitizeSecrets(restoreStderr || `Restauración falló con código ${code}`).slice(0, 1000) });
@@ -1455,17 +1532,38 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Error interno del companion daemon.' });
 });
 
-// Only bind a real port when this file is run directly (`node server/index.js`
-// / `npm run server`). Tests import `app` as a module and drive it via
-// supertest instead, without opening a real socket.
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const server = app.listen(PORT, '127.0.0.1', () => {
-    console.log(`🦅 DB Manager Companion Daemon running on http://127.0.0.1:${PORT}`);
+// Binds a real port and starts listening. Split out from module load (rather
+// than an `if (import.meta.url === ...)` guard at the bottom of this file) so
+// callers control exactly when the daemon binds — needed by both
+// server/serve.js (dev / npm run server) and the SEA companion binary's
+// `--serve` subcommand (server/companion-entry.js), where `import.meta.url`
+// and `process.argv[1]` are ambiguous/unreliable.
+//
+// If another instance is already listening on the port, logs and exits 0
+// (not 1) so systemd's `Restart=on-failure` doesn't loop forever trying to
+// rebind a port that's already correctly served.
+export async function startServer(port = PORT) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/status`, { signal: AbortSignal.timeout(1000) });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        console.log(`🦅 DB Manager Companion Daemon already running on http://127.0.0.1:${port} (v${data.version || '?'})`);
+        process.exit(0);
+      }
+    }
+  } catch {
+    // Nothing listening yet — proceed to bind below.
+  }
+
+  const server = app.listen(port, '127.0.0.1', () => {
+    console.log(`🦅 DB Manager Companion Daemon running on http://127.0.0.1:${port}`);
   });
   server.timeout = 0;
   server.keepAliveTimeout = 0;
   server.requestTimeout = 0;
   server.headersTimeout = 0;
+  return server;
 }
 
 export default app;

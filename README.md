@@ -50,8 +50,8 @@
 ## 📋 Requisitos Previos
 
 * [Beekeeper Studio](https://www.beekeeperstudio.io) **5.4+**
-* [Node.js](https://nodejs.org) **18+** y npm
-* `docker` (opcional, solo para Auto-Discovery de contenedores)
+* [Node.js](https://nodejs.org) **18+** y npm — solo si instalas por la Opción B (symlink/desarrollo). El instalador nativo del companion (Opción A) no requiere Node.js.
+* `mysql`/`mysqldump`, `psql`/`pg_dump`, `mongodump`, `docker` (según el motor que uses) — el companion los invoca pero no los empaqueta; revisa `Tools ➔ DB Manager` o `/api/status` para ver cuáles detecta.
 * `sqlite3` CLI (opcional, solo para leer conexiones ya guardadas en Beekeeper)
 
 ## 🔒 Privacidad
@@ -62,7 +62,15 @@ Todo el procesamiento ocurre en tu máquina. El companion daemon solo escucha en
 
 ## 🚀 Instalación y Autoarranque
 
-### Opción A: Symlink para desarrollo/uso local
+### Opción A: Marketplace de Beekeeper Studio + instalador nativo (recomendado)
+
+1. Instala **DB Manager Pro** desde el marketplace de plugins de Beekeeper Studio (`Plugins` ➔ buscar "DB Manager Pro").
+2. La primera vez que abras una herramienta que necesite el companion (Clonado Stream, Auto-Discovery, Schema Diff), verás un aviso "Companion Daemon no responde" con un botón **Descargar Companion** — descarga el ejecutable de tu sistema operativo desde [GitHub Releases](https://github.com/JonathanHerSa/bks-db-manager/releases/latest) y ábrelo con doble clic.
+3. Eso es todo: el ejecutable se instala a sí mismo, se registra para arrancar solo (Linux `systemd --user`, macOS `LaunchAgent`, Windows `Startup`) y arranca. No necesitas tener Node.js instalado ni abrir una terminal.
+
+El instalador **no viene firmado** todavía (ver [docs/COMPANION.md](docs/COMPANION.md)), así que Windows/macOS mostrarán una advertencia de seguridad la primera vez — ese documento explica exactamente qué botón presionar para continuar.
+
+### Opción B: Symlink para desarrollo/contribución
 
 ```bash
 git clone https://github.com/JonathanHerSa/bks-db-manager.git
@@ -72,12 +80,14 @@ npm run build
 ln -s "$(pwd)" ~/.config/beekeeper-studio/plugins/bks-db-manager
 ```
 
-### 1. Autoarranque del Servicio Daemon (Multiplataforma)
+`npm install` ya deja el companion daemon corriendo en segundo plano y configurado para arrancar solo, apuntando al repo clonado (no al binario nativo) — no hace falta ningún comando adicional ni volver a abrir una terminal para usar el plugin.
 
-Para no tener que abrir una terminal cada vez que uses Beekeeper Studio, instala el servicio en segundo plano:
+#### Gestión manual del servicio (opcional)
+
+Solo necesitas esto si instalaste con `npm install --ignore-scripts`, moviste la carpeta del proyecto, o quieres desactivarlo:
 
 ```bash
-# Instala el servicio en segundo plano (Linux systemd, macOS LaunchAgent o Windows Startup)
+# (Re)instala el servicio en segundo plano manualmente
 npm run daemon:install
 
 # Comprueba que esté activo y respondiendo
@@ -87,9 +97,9 @@ npm run daemon:status
 npm run daemon:uninstall
 ```
 
-*(También puedes correrlo temporalmente en una terminal con `npm run server` si lo prefieres).*
+*(También puedes correrlo temporalmente en una terminal con `npm run server` si lo prefieres en vez del servicio persistente).*
 
-### 2. Abrir en Beekeeper Studio
+### Abrir en Beekeeper Studio
 
 1. Abre **Beekeeper Studio** y conéctate a cualquier base de datos.
 2. Cada herramienta está disponible directamente desde la barra superior en **`Tools`**:
@@ -102,7 +112,7 @@ npm run daemon:uninstall
    * **`Tools` ➔ `DB Manager: Auto-Discovery (Docker & .env)`**
    * O clic derecho sobre cualquier tabla ➔ **`DB Manager: Mock Data para esta tabla`**.
 
-### 3. Modo desarrollo con Hot Reload (opcional)
+### Modo desarrollo con Hot Reload (opcional)
 
 Para modificar componentes Vue y ver los cambios reflejados al instante:
 
@@ -115,10 +125,14 @@ npm run dev
 ## 📦 Compilación y Releases
 
 ```bash
-npm run build
+npm run build            # frontend del plugin -> dist/
+npm run companion:build  # binario nativo del companion para tu SO -> build/
 ```
 
-Esto genera la carpeta `dist/` optimizada. Cada release publicado en [GitHub Releases](https://github.com/JonathanHerSa/bks-db-manager/releases) incluye `manifest.json` y `bks-db-manager-{version}.zip` como assets, siguiendo el proceso de publicación de [Beekeeper Studio Plugins](https://github.com/beekeeper-studio/beekeeper-studio-plugins).
+Cada push de un tag `vX.Y.Z` dispara [`.github/workflows/release.yml`](.github/workflows/release.yml), que compila y publica **un solo** GitHub Release con:
+
+- `manifest.json` y `bks-db-manager-{version}.zip` (frontend del plugin, siguiendo el proceso de publicación de [Beekeeper Studio Plugins](https://github.com/beekeeper-studio/beekeeper-studio-plugins)).
+- `bks-db-manager-companion-{linux-x64,linux-arm64,darwin-arm64,darwin-x64,win-x64}.{tar.gz,zip}` + su `.sha256` (el instalador nativo del companion, ver [docs/COMPANION.md](docs/COMPANION.md)) — sin versión en el nombre, para poder enlazarlos siempre desde `/releases/latest/download/`.
 
 ---
 

@@ -1,0 +1,139 @@
+name: Release
+
+# Triggered by pushing a semver tag (v1.2.3), matching the manifest.json
+# version — see docs/COMPANION.md and README.md "Compilación y Releases".
+# Builds the plugin zip (as the Beekeeper Studio plugin registry expects,
+# see https://docs.beekeeperstudio.io/plugin_development/publishing-plugins/)
+# AND the 5 native companion binaries, and publishes all of it as ONE
+# GitHub Release so the frontend can always link to
+# /releases/latest/download/<asset> without knowing the version.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: npm ci --ignore-scripts
+      - run: npm test -- --run
+      - run: npm run build
+      - name: Package plugin zip
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p out
+          cp manifest.json out/manifest.json
+          (cd dist && zip -r "../out/bks-db-manager-${VERSION}.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: out/*
+          if-no-files-found: error
+
+  companion:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # NOTE: GitHub-hosted runner labels change over time — re-check
+          # https://docs.github.com/actions/using-github-hosted-runners/about-github-hosted-runners
+          # if a job in this matrix starts failing to be scheduled.
+          - os: ubuntu-latest
+            asset: bks-db-manager-companion-linux-x64.tar.gz
+          - os: ubuntu-24.04-arm
+            asset: bks-db-manager-companion-linux-arm64.tar.gz
+          - os: macos-latest # Apple Silicon (arm64) as of actions/runner-images' current default
+            asset: bks-db-manager-companion-darwin-arm64.tar.gz
+          - os: macos-13 # last Intel (x64) macOS runner image
+            asset: bks-db-manager-companion-darwin-x64.tar.gz
+          - os: windows-latest
+            asset: bks-db-manager-companion-win-x64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: npm ci --ignore-scripts
+      - run: node scripts/build-companion.mjs
+
+      # Smoke test: the only reliable way to catch "esbuild bundled Express
+      # into something that doesn't actually boot" in CI (see
+      # scripts/build-companion.mjs's header comment and the risks section
+      # of the implementation plan).
+      - name: Smoke test (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          ./build/companion --version
+          ./build/companion --serve &
+          SERVER_PID=$!
+          for i in $(seq 1 10); do
+            if curl -sf http://127.0.0.1:58765/api/status > /tmp/status.json; then break; fi
+            sleep 1
+          done
+          cat /tmp/status.json
+          grep -q '"ok":true' /tmp/status.json
+          kill $SERVER_PID
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./build/companion.exe --version
+          $proc = Start-Process -FilePath "./build/companion.exe" -ArgumentList "--serve" -PassThru -NoNewWindow
+          $ok = $false
+          for ($i = 0; $i -lt 10; $i++) {
+            try {
+              $res = Invoke-RestMethod -Uri "http://127.0.0.1:58765/api/status" -TimeoutSec 2
+              if ($res.ok) { $ok = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 1
+          }
+          Stop-Process -Id $proc.Id -Force
+          if (-not $ok) { throw "Companion did not respond on /api/status" }
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          cd build
+          tar -czf "../${{ matrix.asset }}" companion companion.sha256
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path build/companion.exe, build/companion.exe.sha256 -DestinationPath ${{ matrix.asset }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    needs: [plugin, companion]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten downloaded artifacts into one release/ dir
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" release/* \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
