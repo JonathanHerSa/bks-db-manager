@@ -7,6 +7,7 @@ import os from 'os';
 describe('Backup & Snapshot API Endpoints', () => {
   let tmpBackupDir;
   let app;
+  let AUTH_TOKEN;
 
   beforeEach(async () => {
     tmpBackupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bks-backup-test-'));
@@ -14,6 +15,7 @@ describe('Backup & Snapshot API Endpoints', () => {
     // Dynamic import to pick up the env var
     const mod = await import('./index.js');
     app = mod.default;
+    AUTH_TOKEN = mod.AUTH_TOKEN;
   });
 
   afterEach(() => {
@@ -24,7 +26,7 @@ describe('Backup & Snapshot API Endpoints', () => {
   });
 
   test('GET /api/backup/list returns an empty list when no backups exist', async () => {
-    const res = await request(app).get('/api/backup/list');
+    const res = await request(app).get('/api/backup/list').set('X-Companion-Token', AUTH_TOKEN);
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.backups).toEqual([]);
@@ -43,7 +45,7 @@ describe('Backup & Snapshot API Endpoints', () => {
     fs.writeFileSync(path.join(tmpBackupDir, file3), 'fake sql content');
     fs.writeFileSync(path.join(tmpBackupDir, ignoreFile), 'should not be listed');
 
-    const res = await request(app).get('/api/backup/list');
+    const res = await request(app).get('/api/backup/list').set('X-Companion-Token', AUTH_TOKEN);
     expect(res.status).toBe(200);
     expect(res.body.backups.length).toBe(3);
 
@@ -65,6 +67,7 @@ describe('Backup & Snapshot API Endpoints', () => {
   test('POST /api/backup/create rejects unsafe database names (SQL injection guard)', async () => {
     const res = await request(app)
       .post('/api/backup/create')
+      .set('X-Companion-Token', AUTH_TOKEN)
       .send({
         database: 'db; DROP TABLE users; --',
         motor: 'mysql'
@@ -77,6 +80,7 @@ describe('Backup & Snapshot API Endpoints', () => {
   test('POST /api/backup/create rejects a database name disguised as a CLI flag', async () => {
     const res = await request(app)
       .post('/api/backup/create')
+      .set('X-Companion-Token', AUTH_TOKEN)
       .send({
         database: '--all-databases',
         motor: 'mysql'
@@ -89,6 +93,7 @@ describe('Backup & Snapshot API Endpoints', () => {
   test('POST /api/backup/restore rejects path traversal attacks', async () => {
     const res = await request(app)
       .post('/api/backup/restore')
+      .set('X-Companion-Token', AUTH_TOKEN)
       .send({
         filename: '../../../../etc/shadow',
         database: 'target_db'
@@ -105,6 +110,7 @@ describe('Backup & Snapshot API Endpoints', () => {
 
     const res = await request(app)
       .post('/api/backup/restore')
+      .set('X-Companion-Token', AUTH_TOKEN)
       .send({
         filename: fakeSnapshot,
         database: 'target; DROP DATABASE x;'
@@ -120,6 +126,7 @@ describe('Backup & Snapshot API Endpoints', () => {
 
     const res = await request(app)
       .delete('/api/backup/delete')
+      .set('X-Companion-Token', AUTH_TOKEN)
       .send({ filename: testFile });
 
     expect(res.status).toBe(200);
@@ -129,6 +136,7 @@ describe('Backup & Snapshot API Endpoints', () => {
     // Calling delete again returns 404
     const res404 = await request(app)
       .delete('/api/backup/delete')
+      .set('X-Companion-Token', AUTH_TOKEN)
       .send({ filename: testFile });
     expect(res404.status).toBe(404);
   });

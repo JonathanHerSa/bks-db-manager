@@ -59,7 +59,7 @@ vi.mock('child_process', async () => {
 });
 
 const fs = (await import('fs')).default;
-const app = (await import('./index.js')).default;
+const { default: app, AUTH_TOKEN } = await import('./index.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -72,7 +72,7 @@ beforeEach(() => {
 
 describe('GET /api/discovery/projects - path validation', () => {
   test('responds 400 (not a crash) when "path" is a nested object instead of a string', async () => {
-    const res = await request(app).get('/api/discovery/projects?path[a]=1');
+    const res = await request(app).get('/api/discovery/projects?path[a]=1').set('X-Companion-Token', AUTH_TOKEN);
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'Parámetro "path" inválido.' });
   });
@@ -80,7 +80,7 @@ describe('GET /api/discovery/projects - path validation', () => {
   test('accepts a plain string path', async () => {
     fs.existsSync.mockImplementation(() => true);
     fs.readdirSync.mockImplementation(() => []);
-    const res = await request(app).get('/api/discovery/projects').query({ path: '/fake/root' });
+    const res = await request(app).get('/api/discovery/projects').set('X-Companion-Token', AUTH_TOKEN).query({ path: '/fake/root' });
     expect(res.status).toBe(200);
     expect(res.body.scannedDir).toBe('/fake/root');
   });
@@ -100,7 +100,7 @@ describe('GET /api/discovery/projects - depth clamp', () => {
   test('clamps an oversized depth (999) down to the maximum of 12', async () => {
     makeInfiniteNestingMocks();
     const res = await request(app)
-      .get('/api/discovery/projects')
+      .get('/api/discovery/projects').set('X-Companion-Token', AUTH_TOKEN)
       .query({ path: '/fake/root', depth: 999 });
 
     expect(res.status).toBe(200);
@@ -113,7 +113,7 @@ describe('GET /api/discovery/projects - depth clamp', () => {
   test('clamps a negative depth (-5) up to the minimum of 0', async () => {
     makeInfiniteNestingMocks();
     const res = await request(app)
-      .get('/api/discovery/projects')
+      .get('/api/discovery/projects').set('X-Companion-Token', AUTH_TOKEN)
       .query({ path: '/fake/root', depth: -5 });
 
     expect(res.status).toBe(200);
@@ -124,7 +124,7 @@ describe('GET /api/discovery/projects - depth clamp', () => {
   test('defaults to a maxDepth of 6 when depth is not provided', async () => {
     makeInfiniteNestingMocks();
     const res = await request(app)
-      .get('/api/discovery/projects')
+      .get('/api/discovery/projects').set('X-Companion-Token', AUTH_TOKEN)
       .query({ path: '/fake/root' });
 
     expect(res.status).toBe(200);
@@ -147,7 +147,7 @@ describe('GET /api/discovery/projects - .env parsing', () => {
     });
 
     const res = await request(app)
-      .get('/api/discovery/projects')
+      .get('/api/discovery/projects').set('X-Companion-Token', AUTH_TOKEN)
       .query({ path: '/fake/proj', depth: 2 });
 
     expect(res.status).toBe(200);

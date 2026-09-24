@@ -65,8 +65,7 @@ vi.mock('child_process', async () => {
 
 const fs = (await import('fs')).default;
 const { exec, execFile } = await import('child_process');
-const { isSafeDbName } = await import('./index.js');
-const app = (await import('./index.js')).default;
+const { isSafeDbName, default: app, AUTH_TOKEN } = await import('./index.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -124,7 +123,7 @@ describe('resolvePassword cross-account fix (via POST /api/databases)', () => {
     });
     execFile.mockImplementation((file, args, options, callback) => callback(null, 'app_db\n', ''));
 
-    await request(app).post('/api/databases').send({
+    await request(app).post('/api/databases').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'dbhost', port: 3306, user: 'readonly', pass: '',
     });
 
@@ -140,7 +139,7 @@ describe('resolvePassword cross-account fix (via POST /api/databases)', () => {
     });
     execFile.mockImplementation((file, args, options, callback) => callback(null, 'app_db\n', ''));
 
-    await request(app).post('/api/databases').send({
+    await request(app).post('/api/databases').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'dbhost', port: 3306, user: 'root', pass: '',
     });
 
@@ -151,7 +150,7 @@ describe('resolvePassword cross-account fix (via POST /api/databases)', () => {
 
 describe('POST /api/clone/stream input validation', () => {
   test('rejects an unsafe srcDb', async () => {
-    const res = await request(app).post('/api/clone/stream').send({
+    const res = await request(app).post('/api/clone/stream').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql',
       srcHost: 'h', srcPort: 1, srcUser: 'u', srcDb: '--all-databases',
       dstHost: 'h', dstPort: 1, dstUser: 'u', dstDb: 'b',
@@ -160,7 +159,7 @@ describe('POST /api/clone/stream input validation', () => {
   });
 
   test('rejects an unsafe dstDb', async () => {
-    const res = await request(app).post('/api/clone/stream').send({
+    const res = await request(app).post('/api/clone/stream').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql',
       srcHost: 'h', srcPort: 1, srcUser: 'u', srcDb: 'a',
       dstHost: 'h', dstPort: 1, dstUser: 'u', dstDb: 'db; DROP DATABASE x;',
@@ -169,7 +168,7 @@ describe('POST /api/clone/stream input validation', () => {
   });
 
   test('rejects an unsafe excludeTables entry', async () => {
-    const res = await request(app).post('/api/clone/stream').send({
+    const res = await request(app).post('/api/clone/stream').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql',
       srcHost: 'h', srcPort: 1, srcUser: 'u', srcDb: 'a',
       dstHost: 'h', dstPort: 1, dstUser: 'u', dstDb: 'b',

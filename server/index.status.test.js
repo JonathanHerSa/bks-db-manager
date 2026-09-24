@@ -70,7 +70,7 @@ vi.mock('child_process', async () => {
 
 const fs = (await import('fs')).default;
 const { exec, execFile } = await import('child_process');
-const app = (await import('./index.js')).default;
+const { default: app, AUTH_TOKEN } = await import('./index.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -139,7 +139,7 @@ describe('GET /api/docker', () => {
     });
     exec.mockImplementation((command, options, callback) => callback(null, `${line}\n`, ''));
 
-    const res = await request(app).get('/api/docker');
+    const res = await request(app).get('/api/docker').set('X-Companion-Token', AUTH_TOKEN);
 
     expect(res.status).toBe(200);
     expect(res.body.containers).toHaveLength(1);
@@ -156,7 +156,7 @@ describe('GET /api/docker', () => {
 
   test('returns an empty containers array when docker ps has no output', async () => {
     exec.mockImplementation((command, options, callback) => callback(null, '', ''));
-    const res = await request(app).get('/api/docker');
+    const res = await request(app).get('/api/docker').set('X-Companion-Token', AUTH_TOKEN);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ containers: [] });
   });
@@ -170,7 +170,7 @@ describe('GET /api/docker', () => {
       Ports: '0.0.0.0:8080->80/tcp',
     });
     exec.mockImplementation((command, options, callback) => callback(null, `${line}\n`, ''));
-    const res = await request(app).get('/api/docker');
+    const res = await request(app).get('/api/docker').set('X-Companion-Token', AUTH_TOKEN);
     expect(res.status).toBe(200);
     expect(res.body.containers).toEqual([]);
   });
@@ -183,7 +183,7 @@ describe('global error handler', () => {
   // handler registered at the bottom of server/index.js.
   test('responds with a generic 500 and no stack trace / internal details for unexpected errors', async () => {
     const res = await request(app)
-      .post('/api/databases')
+      .post('/api/databases').set('X-Companion-Token', AUTH_TOKEN)
       .set('Content-Type', 'application/json')
       .send('{ this is not valid json');
 

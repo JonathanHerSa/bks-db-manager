@@ -104,13 +104,19 @@ describe('getSavedConnections / getDockerContainers / getDiscoveredProjects', ()
     ;(fetch as any).mockResolvedValue(jsonResponse({ projects: [{ name: 'p1' }] }))
     const result = await getDiscoveredProjects({ path: '~/code', depth: 3 })
     expect(result).toEqual([{ name: 'p1' }])
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:58765/api/discovery/projects?path=%7E%2Fcode&depth=3')
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:58765/api/discovery/projects?path=%7E%2Fcode&depth=3',
+      { headers: { 'Content-Type': 'application/json' } }
+    )
   })
 
   it('omits query params when none are provided', async () => {
     ;(fetch as any).mockResolvedValue(jsonResponse({ projects: [] }))
     await getDiscoveredProjects()
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:58765/api/discovery/projects')
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:58765/api/discovery/projects',
+      { headers: { 'Content-Type': 'application/json' } }
+    )
   })
 })
 

@@ -1,5 +1,9 @@
 const COMPANION_URL = 'http://127.0.0.1:58765';
 
+// Token obtained from /api/status on the first successful health check.
+// All privileged endpoints require this token in the X-Companion-Token header.
+let companionToken: string | null = null;
+
 export interface CompanionStatus {
   ok: boolean;
   version: string;
@@ -13,10 +17,6 @@ export interface SavedConnection {
   host: string;
   port: number | null;
   user: string;
-  // NOTE: the companion daemon never sends the resolved password back to the
-  // client (no auth + open CORS would otherwise leak every saved credential).
-  // Endpoints that need it (getDatabasesList, getTablesList, inspectSchema,
-  // startStreamClone) resolve it server-side when `pass` is omitted/empty.
   hasPassword: boolean;
   isBeekeeper?: boolean;
   defaultDatabase?: string;
@@ -24,10 +24,6 @@ export interface SavedConnection {
   url?: string;
 }
 
-/**
- * Formats a saved connection for a <select> option label, disambiguating
- * connections that share the same display name by appending their port.
- */
 export function formatConnOption(conn: SavedConnection, allConns: SavedConnection[]): string {
   const icon = conn.isBeekeeper ? '🗄️' : '⚡';
   const duplicates = allConns.filter(
@@ -70,6 +66,14 @@ export interface DiscoveredProject {
   connUrl?: string;
 }
 
+function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (companionToken) {
+    h['X-Companion-Token'] = companionToken;
+  }
+  return h;
+}
+
 export async function saveConnectionToBeekeeper(params: {
   name: string;
   motor: string;
@@ -84,7 +88,7 @@ export async function saveConnectionToBeekeeper(params: {
   try {
     const res = await fetch(`${COMPANION_URL}/api/conns/save`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(params)
     });
     return await res.json();
@@ -97,7 +101,11 @@ export async function checkCompanionStatus(): Promise<CompanionStatus | null> {
   try {
     const res = await fetch(`${COMPANION_URL}/api/status`, { signal: AbortSignal.timeout(1500) });
     if (!res.ok) return null;
-    return await res.json();
+    const data = await res.json();
+    if (data.token) {
+      companionToken = data.token;
+    }
+    return data as CompanionStatus;
   } catch {
     return null;
   }
@@ -105,7 +113,9 @@ export async function checkCompanionStatus(): Promise<CompanionStatus | null> {
 
 export async function getSavedConnections(): Promise<SavedConnection[]> {
   try {
-    const res = await fetch(`${COMPANION_URL}/api/conns`);
+    const res = await fetch(`${COMPANION_URL}/api/conns`, {
+      headers: authHeaders()
+    });
     const data = await res.json();
     return data.conns || [];
   } catch (err) {
@@ -116,7 +126,9 @@ export async function getSavedConnections(): Promise<SavedConnection[]> {
 
 export async function getDockerContainers(): Promise<DockerContainer[]> {
   try {
-    const res = await fetch(`${COMPANION_URL}/api/docker`);
+    const res = await fetch(`${COMPANION_URL}/api/docker`, {
+      headers: authHeaders()
+    });
     const data = await res.json();
     return data.containers || [];
   } catch (err) {
@@ -134,7 +146,9 @@ export async function getDiscoveredProjects(params?: {
     if (params?.path) q.set('path', params.path);
     if (params?.depth) q.set('depth', String(params.depth));
     const url = `${COMPANION_URL}/api/discovery/projects${q.toString() ? '?' + q.toString() : ''}`;
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: authHeaders()
+    });
     const data = await res.json();
     return data.projects || [];
   } catch (err) {
@@ -153,7 +167,7 @@ export async function getDatabasesList(params: {
   try {
     const res = await fetch(`${COMPANION_URL}/api/databases`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(params)
     });
     const data = await res.json();
@@ -174,7 +188,7 @@ export async function getTablesList(params: {
   try {
     const res = await fetch(`${COMPANION_URL}/api/tables`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(params)
     });
     const data = await res.json();
@@ -196,7 +210,7 @@ export async function getDatabaseInfo(params: {
   try {
     const res = await fetch(`${COMPANION_URL}/api/database/info`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(params)
     });
     const data = await res.json();
@@ -230,7 +244,7 @@ export async function inspectSchema(params: {
   try {
     const res = await fetch(`${COMPANION_URL}/api/schema/inspect`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(params)
     });
     const data = await res.json();
@@ -270,7 +284,7 @@ export function startStreamClone(
 
   fetch(`${COMPANION_URL}/api/clone/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(params),
     signal: controller.signal
   })
@@ -330,7 +344,6 @@ export function startStreamClone(
           }
         }
       } catch (streamErr: any) {
-        // If the stream already completed successfully, ignore downstream socket close errors
         if (!isCompleted && !errorReported && streamErr?.name !== 'AbortError') {
           throw streamErr;
         }

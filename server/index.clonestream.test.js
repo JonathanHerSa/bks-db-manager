@@ -31,7 +31,7 @@ vi.mock('child_process', async () => {
   return { exec, execFile, spawn, default: { exec, execFile, spawn } };
 });
 
-const app = (await import('./index.js')).default;
+const { default: app, AUTH_TOKEN } = await import('./index.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,7 +41,7 @@ describe('POST /api/clone/stream engine-support guard', () => {
   test.each(['sqlserver', 'clickhouse', 'redis'])(
     'rejects %s with 400 before starting the SSE stream',
     async (motor) => {
-      const res = await request(app).post('/api/clone/stream').send({
+      const res = await request(app).post('/api/clone/stream').set('X-Companion-Token', AUTH_TOKEN).send({
         motor,
         srcHost: 'h', srcPort: 1, srcUser: 'u', srcDb: 'a',
         dstHost: 'h', dstPort: 1, dstUser: 'u', dstDb: 'b',
@@ -52,7 +52,7 @@ describe('POST /api/clone/stream engine-support guard', () => {
   );
 
   test('rejects an unknown motor with 400', async () => {
-    const res = await request(app).post('/api/clone/stream').send({
+    const res = await request(app).post('/api/clone/stream').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'oracle',
       srcHost: 'h', srcPort: 1, srcUser: 'u', srcDb: 'a',
       dstHost: 'h', dstPort: 1, dstUser: 'u', dstDb: 'b',

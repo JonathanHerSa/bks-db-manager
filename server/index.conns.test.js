@@ -70,7 +70,7 @@ vi.mock('child_process', async () => {
 
 const fs = (await import('fs')).default;
 const { exec, execFile } = await import('child_process');
-const app = (await import('./index.js')).default;
+const { default: app, AUTH_TOKEN } = await import('./index.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -93,7 +93,7 @@ describe('GET /api/conns', () => {
     const row = ['1', 'My DB', 'mysql', 'dbhost', '3306', 'root', 'mydb', '', ''].join('|');
     execFile.mockImplementation((file, args, options, callback) => callback(null, `${row}\n`, ''));
 
-    const res = await request(app).get('/api/conns');
+    const res = await request(app).get('/api/conns').set('X-Companion-Token', AUTH_TOKEN);
 
     expect(res.status).toBe(200);
     expect(res.body.conns).toHaveLength(1);
@@ -127,7 +127,7 @@ describe('GET /api/conns', () => {
       return '';
     });
 
-    const res = await request(app).get('/api/conns');
+    const res = await request(app).get('/api/conns').set('X-Companion-Token', AUTH_TOKEN);
 
     expect(res.status).toBe(200);
     expect(res.body.conns).toHaveLength(2);
@@ -139,7 +139,7 @@ describe('GET /api/conns', () => {
 
   test('never crashes and returns a safe error when reading connections fails', async () => {
     fs.existsSync.mockImplementation(() => { throw new Error('boom /home/real-user/secret-path'); });
-    const res = await request(app).get('/api/conns');
+    const res = await request(app).get('/api/conns').set('X-Companion-Token', AUTH_TOKEN);
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain('secret-path');
   });
@@ -152,7 +152,7 @@ describe('POST /api/conns/save', () => {
       .mockImplementationOnce((file, args, options, callback) => callback(null, '', '')) // check: not found
       .mockImplementationOnce((file, args, options, callback) => callback(null, '', '')); // insert ok
 
-    const res = await request(app).post('/api/conns/save').send({
+    const res = await request(app).post('/api/conns/save').set('X-Companion-Token', AUTH_TOKEN).send({
       name: 'Weird',
       motor: "x' OR '1'='1",
       host: 'localhost',
@@ -183,7 +183,7 @@ describe('POST /api/conns/save', () => {
     fs.existsSync.mockImplementation((p) => p === BEEKEEPER_DB_PATH);
     execFile.mockImplementationOnce((file, args, options, callback) => callback(null, '5\n', ''));
 
-    const res = await request(app).post('/api/conns/save').send({
+    const res = await request(app).post('/api/conns/save').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'h', port: 3306, user: 'root', database: 'd',
     });
 
@@ -198,7 +198,7 @@ describe('POST /api/conns/save', () => {
 
   test('responds 404 when the Beekeeper app.db file does not exist', async () => {
     fs.existsSync.mockImplementation(() => false);
-    const res = await request(app).post('/api/conns/save').send({ motor: 'mysql', host: 'h' });
+    const res = await request(app).post('/api/conns/save').set('X-Companion-Token', AUTH_TOKEN).send({ motor: 'mysql', host: 'h' });
     expect(res.status).toBe(404);
     expect(execFile).not.toHaveBeenCalled();
   });
@@ -209,7 +209,7 @@ describe('POST /api/conns/save', () => {
       .mockImplementationOnce((file, args, options, callback) => callback(null, '', ''))
       .mockImplementationOnce((file, args, options, callback) => callback(null, '', ''));
 
-    await request(app).post('/api/conns/save').send({
+    await request(app).post('/api/conns/save').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'h', port: 3306, user: 'root', password: 'S3cret!', database: 'd',
     });
 
@@ -231,7 +231,7 @@ describe('POST /api/conns/save', () => {
       .mockImplementationOnce((file, args, options, callback) => callback(null, '', '')) // check
       .mockImplementationOnce((file, args, options, callback) => callback(secretErr)); // insert fails
 
-    const res = await request(app).post('/api/conns/save').send({
+    const res = await request(app).post('/api/conns/save').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'h', port: 3306, user: 'root', password: 'TOP_SECRET_PASSWORD', database: 'd',
     });
 

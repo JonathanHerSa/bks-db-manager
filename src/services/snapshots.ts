@@ -5,8 +5,12 @@ import {
   showNotification,
   isSafeIdentifier
 } from './beekeeper';
+import { checkCompanionStatus as checkCompanionStatusBase } from './companion';
 
 const COMPANION_URL = 'http://127.0.0.1:58765';
+
+// Token obtained from /api/status on the first successful health check.
+let companionToken: string | null = null;
 
 export interface SnapshotInfo {
   filename: string;
@@ -38,27 +42,28 @@ export interface RestoreSnapshotOptions {
   pass?: string;
 }
 
-export function formatBytes(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (companionToken) {
+    h['X-Companion-Token'] = companionToken;
+  }
+  return h;
 }
 
 export async function checkCompanionStatus(): Promise<boolean> {
-  try {
-    const res = await fetch(`${COMPANION_URL}/api/status`, { signal: AbortSignal.timeout(1500) });
-    const data = await res.json();
-    return Boolean(data?.ok);
-  } catch {
-    return false;
+  const status = await checkCompanionStatusBase();
+  if (status && (status as any).token) {
+    companionToken = (status as any).token;
   }
+  return Boolean(status?.ok);
 }
 
 export async function fetchSnapshots(): Promise<{ ok: boolean; backups: SnapshotInfo[]; backupDir?: string }> {
   try {
-    const res = await fetch(`${COMPANION_URL}/api/backup/list`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${COMPANION_URL}/api/backup/list`, {
+      headers: authHeaders(),
+      signal: AbortSignal.timeout(3000)
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err: any) {
@@ -70,7 +75,7 @@ export async function createSnapshot(options: CreateSnapshotOptions): Promise<{ 
   try {
     const res = await fetch(`${COMPANION_URL}/api/backup/create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(options),
       signal: AbortSignal.timeout(30000)
     });
@@ -88,7 +93,7 @@ export async function restoreSnapshot(options: RestoreSnapshotOptions): Promise<
   try {
     const res = await fetch(`${COMPANION_URL}/api/backup/restore`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(options),
       signal: AbortSignal.timeout(60000)
     });
@@ -106,7 +111,7 @@ export async function deleteSnapshot(filename: string): Promise<{ ok: boolean; e
   try {
     const res = await fetch(`${COMPANION_URL}/api/backup/delete`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ filename }),
       signal: AbortSignal.timeout(3000)
     });
@@ -118,6 +123,14 @@ export async function deleteSnapshot(filename: string): Promise<{ ok: boolean; e
   } catch (err: any) {
     return { ok: false, error: err.message };
   }
+}
+
+export function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
 /**

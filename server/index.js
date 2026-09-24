@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
@@ -16,6 +17,13 @@ const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 const app = express();
 const PORT = process.env.BKS_DB_MANAGER_PORT || 58765;
+
+// Authentication token: generated on every daemon startup and exposed via
+// /api/status so the plugin can obtain it. This prevents CSRF from local
+// files or other origins since only a caller that successfully read
+// /api/status (which is intentionally CORS-restrictive) can use the
+// privileged endpoints.
+export const AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
 
 // `__COMPANION_VERSION__` is injected at build time by scripts/build-companion.mjs
 // (esbuild --define) when bundling the SEA companion binary, since a bundled
@@ -44,6 +52,21 @@ app.use(cors({
   }
 }));
 app.use(express.json({ limit: '2mb' }));
+
+// Authentication middleware: all endpoints except /api/status require the
+// X-Companion-Token header to mitigate CSRF from local files or malicious
+// web pages that might be able to reach localhost:58765.
+function requireAuth(req, res, next) {
+  if (req.path === '/api/status') {
+    return next();
+  }
+  const provided = req.headers['x-companion-token'];
+  if (!provided || provided !== AUTH_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized. Fetch /api/status first to obtain the current token.' });
+  }
+  next();
+}
+app.use(requireAuth);
 
 // Redacts anything that looks like a credential/password from strings before they are
 // ever logged to the console or sent back to the HTTP client.
@@ -84,7 +107,7 @@ export function isSafeDbName(name) {
 
 const BACKUP_DIR = getBackupDir();
 
-// 1. Health check & Tool verification
+// 1. Health check & Tool verification (public, no auth required)
 app.get('/api/status', async (req, res) => {
   const tools = ['mysql', 'mysqldump', 'psql', 'pg_dump', 'mongodump', 'zstd', 'docker', 'pv'];
   const status = {};
@@ -96,7 +119,7 @@ app.get('/api/status', async (req, res) => {
       status[tool] = false;
     }
   }
-  res.json({ ok: true, version: COMPANION_VERSION, tools: status });
+  res.json({ ok: true, version: COMPANION_VERSION, token: AUTH_TOKEN, tools: status });
 });
 
 function getKnownPasswords() {

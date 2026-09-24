@@ -64,7 +64,7 @@ vi.mock('child_process', async () => {
 });
 
 const { exec, execFile } = await import('child_process');
-const app = (await import('./index.js')).default;
+const { default: app, AUTH_TOKEN } = await import('./index.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -82,7 +82,7 @@ describe('POST /api/databases', () => {
   test('passes a malicious host as a single argv element to execFile (mysql), never via a shell exec', async () => {
     execFile.mockImplementation((file, args, options, callback) => callback(null, 'mydb\n', ''));
 
-    const res = await request(app).post('/api/databases').send({
+    const res = await request(app).post('/api/databases').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: MALICIOUS_HOST, port: 3306, user: 'root', pass: 'x',
     });
 
@@ -102,7 +102,7 @@ describe('POST /api/tables', () => {
   test('passes a malicious host as a single argv element to execFile (postgres), never via a shell exec', async () => {
     execFile.mockImplementation((file, args, options, callback) => callback(null, 'users\n', ''));
 
-    const res = await request(app).post('/api/tables').send({
+    const res = await request(app).post('/api/tables').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'pg', host: MALICIOUS_HOST, port: 5432, user: 'postgres', pass: 'x', database: 'd',
     });
 
@@ -121,7 +121,7 @@ describe('POST /api/database/info', () => {
     execFile.mockImplementation((file, args, options, callback) => callback(null, '12.5 3\n', ''));
     const maliciousDb = "db' OR '1'='1";
 
-    const res = await request(app).post('/api/database/info').send({
+    const res = await request(app).post('/api/database/info').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'h', port: 3306, user: 'root', pass: 'x', database: maliciousDb,
     });
 
@@ -139,7 +139,7 @@ describe('POST /api/schema/inspect', () => {
   test('passes a malicious host as a single argv element to execFile (postgres)', async () => {
     execFile.mockImplementation((file, args, options, callback) => callback(null, '', ''));
 
-    const res = await request(app).post('/api/schema/inspect').send({
+    const res = await request(app).post('/api/schema/inspect').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'pg', host: MALICIOUS_HOST, port: 5432, user: 'postgres', pass: 'x', database: 'd',
     });
 
@@ -155,7 +155,7 @@ describe('POST /api/schema/inspect', () => {
     execFile.mockImplementation((file, args, options, callback) => callback(null, '', ''));
     const maliciousDb = "db' OR '1'='1";
 
-    const res = await request(app).post('/api/schema/inspect').send({
+    const res = await request(app).post('/api/schema/inspect').set('X-Companion-Token', AUTH_TOKEN).send({
       motor: 'mysql', host: 'h', port: 3306, user: 'root', pass: 'x', database: maliciousDb,
     });
 
