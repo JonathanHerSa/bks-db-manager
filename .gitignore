@@ -19,3 +19,6 @@ main.js
 # scripts/build-companion.mjs output (SEA companion binaries, ~140MB each)
 build/
 
+
+# Vite build output (CI builds it and packages the release zip)
+dist/
