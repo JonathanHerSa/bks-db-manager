@@ -30,9 +30,10 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
+          ID="$(node -p "require('./manifest.json').id")"
           mkdir -p out
           cp manifest.json out/manifest.json
-          (cd dist && zip -r "../out/bks-db-manager-${VERSION}.zip" .)
+          (cd dist && zip -r "../out/${ID}-${VERSION}.zip" .)
       - uses: actions/upload-artifact@v4
         with:
           name: plugin
