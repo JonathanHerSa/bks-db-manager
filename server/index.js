@@ -41,15 +41,20 @@ export const COMPANION_VERSION = typeof __COMPANION_VERSION__ !== 'undefined' ? 
 // loading the built plugin from a local file/custom-protocol context) are allowed,
 // since those aren't real cross-site browser attackers; only an explicit, known
 // third-party Origin (a real website) is rejected. During development the Vite dev
-// server origin is also allowed.
-const ALLOWED_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173']);
+const ALLOWED_ORIGIN_REGEX = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || origin === 'null' || ALLOWED_ORIGINS.has(origin)) {
+    if (
+      !origin ||
+      origin === 'null' ||
+      origin.startsWith('plugin://') ||
+      ALLOWED_ORIGIN_REGEX.test(origin)
+    ) {
       return callback(null, true);
     }
     return callback(null, false);
-  }
+  },
+  allowedHeaders: ['Content-Type', 'X-Companion-Token']
 }));
 app.use(express.json({ limit: '2mb' }));
 

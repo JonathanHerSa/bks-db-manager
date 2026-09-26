@@ -110,6 +110,24 @@ describe('CORS policy', () => {
       .set('Origin', 'http://localhost:5173');
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
   });
+
+  test('allows Beekeeper Studio plugin origin (plugin://)', async () => {
+    const res = await request(app)
+      .get('/api/status')
+      .set('Origin', 'plugin://t3zca-db-manager');
+    expect(res.headers['access-control-allow-origin']).toBe('plugin://t3zca-db-manager');
+  });
+
+  test('allows preflight OPTIONS with X-Companion-Token header', async () => {
+    const res = await request(app)
+      .options('/api/status')
+      .set('Origin', 'plugin://t3zca-db-manager')
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type,x-companion-token');
+    expect(res.status).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBe('plugin://t3zca-db-manager');
+    expect(res.headers['access-control-allow-headers']).toContain('X-Companion-Token');
+  });
 });
 
 describe('resolvePassword cross-account fix (via POST /api/databases)', () => {
