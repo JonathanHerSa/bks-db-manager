@@ -1,7 +1,7 @@
 {
   "id": "t3zca-db-manager",
   "name": "DB Manager Pro",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAppVersion": "5.4.0",
   "description": "Live stream cloning (A -> B), smart sanitization (strip DEFINER), schema diff, docker & .env discovery, and mock data generator.",
   "author": {
@@ -15,7 +15,7 @@
       {
         "id": "t3zca-db-manager",
         "name": "DB Manager Pro",
-        "type": "shell-tab",
+        "type": "plain-tab",
         "entry": "dist/index.html"
       }
     ],

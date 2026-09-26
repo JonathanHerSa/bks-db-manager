@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent } from 'vue';
+import { ref, onMounted } from 'vue';
 import {
   Database,
   Archive,
@@ -93,13 +93,13 @@ import {
   type ConnectionData
 } from './services/beekeeper';
 
-const SnapshotsTab = defineAsyncComponent(() => import('./components/SnapshotsTab.vue'));
-const CloneStreamTab = defineAsyncComponent(() => import('./components/CloneStreamTab.vue'));
-const SchemaDiffTab = defineAsyncComponent(() => import('./components/SchemaDiffTab.vue'));
-const HealthAuditorTab = defineAsyncComponent(() => import('./components/HealthAuditorTab.vue'));
-const MockDataTab = defineAsyncComponent(() => import('./components/MockDataTab.vue'));
-const DataDictionaryTab = defineAsyncComponent(() => import('./components/DataDictionaryTab.vue'));
-const DiscoveryTab = defineAsyncComponent(() => import('./components/DiscoveryTab.vue'));
+import SnapshotsTab from './components/SnapshotsTab.vue';
+import CloneStreamTab from './components/CloneStreamTab.vue';
+import SchemaDiffTab from './components/SchemaDiffTab.vue';
+import HealthAuditorTab from './components/HealthAuditorTab.vue';
+import MockDataTab from './components/MockDataTab.vue';
+import DataDictionaryTab from './components/DataDictionaryTab.vue';
+import DiscoveryTab from './components/DiscoveryTab.vue';
 
 type TabType = 'snapshots' | 'clone' | 'diff' | 'health' | 'mock' | 'docs' | 'discovery';
 
