@@ -140,7 +140,7 @@
 
               <div class="flex items-center gap-2">
                 <button
-                  @click="openTableNative(tbl.name)"
+                  @click="openTableNative(tbl.name, tbl.schema)"
                   class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
                   title="Abrir vista de datos de esta tabla en Beekeeper"
                 >
@@ -279,6 +279,7 @@ import {
 
 export interface TableDocData {
   name: string;
+  schema?: string;
   rowCount?: number;
   columns: ColumnInfo[];
   foreignKeys: ForeignKeyInfo[];
@@ -378,6 +379,7 @@ async function loadDictionary() {
   try {
     const rawTables = await fetchTablesForDatabase(selectedDb.value);
     const names = rawTables.map((t) => t.name).filter(Boolean);
+    const schemaByName = new Map(rawTables.map((t) => [t.name, t.schema]));
 
     const results: TableDocData[] = [];
     for (let i = 0; i < names.length; i++) {
@@ -392,6 +394,7 @@ async function loadDictionary() {
 
       results.push({
         name,
+        schema: schemaByName.get(name),
         columns: cols,
         foreignKeys: fks,
         rowCount: count
@@ -431,9 +434,16 @@ async function exportMarkdownDoc() {
   }
 }
 
-async function openTableNative(tableName: string) {
+async function openTableNative(tableName: string, schema?: string) {
   if (!isSafeIdentifier(tableName)) return;
-  await openTableInBeekeeper(tableName, undefined, selectedDb.value);
+  await openTableInBeekeeper(tableName, schema, selectedDb.value, (msg) =>
+    showNotification(
+      /Table not found/i.test(msg)
+        ? `Selecciona la base "${selectedDb.value}" en Beekeeper para abrir la tabla "${tableName}".`
+        : `No se pudo abrir la tabla en Beekeeper: ${msg}`,
+      'error'
+    )
+  );
 }
 
 onMounted(async () => {

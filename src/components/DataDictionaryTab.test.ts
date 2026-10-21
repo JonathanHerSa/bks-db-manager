@@ -155,6 +155,6 @@ describe('DataDictionaryTab', () => {
     await openBtn?.trigger('click')
     await flushPromises()
 
-    expect(openTableInBeekeeper).toHaveBeenCalledWith('users', undefined, 'ecommerce_db')
+    expect(openTableInBeekeeper).toHaveBeenCalledWith('users', undefined, 'ecommerce_db', expect.any(Function))
   })
 })

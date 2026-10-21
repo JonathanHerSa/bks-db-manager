@@ -519,14 +519,39 @@ export async function openQueryInBeekeeper(query: string): Promise<boolean> {
 /**
  * Abre la vista de datos de una tabla específica en Beekeeper Studio.
  */
-export async function openTableInBeekeeper(table: string, schema?: string, database?: string): Promise<boolean> {
+export async function openTableInBeekeeper(
+  table: string,
+  schema?: string,
+  database?: string,
+  onError?: (message: string) => void
+): Promise<boolean> {
+  // Beekeeper 6.x resuelve la tabla con `name`, aunque el SDK tipa `table`: se envían ambos.
+  const open = (withSchema?: string) => {
+    const options = { table, name: table, schema: withSchema, database };
+    // Si el host lanza antes de responder, la promesa podría quedar colgada: se limita la espera.
+    return Promise.race([
+      openTab('tableTable', options),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Beekeeper no respondió en 5 s')), 5000)
+      ),
+    ]);
+  };
+
   try {
     if (typeof openTab === 'function') {
-      await openTab('tableTable', { table, schema, database });
+      try {
+        await open(schema);
+      } catch (err: any) {
+        // En MySQL el "schema" es la base de datos y Beekeeper no lo registra en la tabla.
+        if (!schema || !/Table not found/i.test(err?.message || '')) throw err;
+        await open(undefined);
+      }
       return true;
     }
-  } catch (err) {
+    onError?.('openTab no está disponible en este entorno');
+  } catch (err: any) {
     console.warn('Error al abrir tableTable tab en Beekeeper:', err);
+    onError?.(err?.message || String(err));
   }
   return false;
 }

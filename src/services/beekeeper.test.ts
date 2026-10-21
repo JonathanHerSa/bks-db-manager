@@ -512,7 +512,16 @@ describe('openTableInBeekeeper', () => {
     openTab.mockResolvedValue(undefined)
     const result = await openTableInBeekeeper('users', 'public', 'mydb')
     expect(result).toBe(true)
-    expect(openTab).toHaveBeenCalledWith('tableTable', { table: 'users', schema: 'public', database: 'mydb' })
+    expect(openTab).toHaveBeenCalledWith('tableTable', { table: 'users', name: 'users', schema: 'public', database: 'mydb' })
+  })
+
+  it('retries without schema when the host cannot find the table with it', async () => {
+    openTab
+      .mockRejectedValueOnce(new Error('Table not found (table=users, schema=mydb)'))
+      .mockResolvedValueOnce(undefined)
+    const result = await openTableInBeekeeper('users', 'mydb', 'mydb')
+    expect(result).toBe(true)
+    expect(openTab).toHaveBeenLastCalledWith('tableTable', { table: 'users', name: 'users', schema: undefined, database: 'mydb' })
   })
 
   it('returns false on error', async () => {
