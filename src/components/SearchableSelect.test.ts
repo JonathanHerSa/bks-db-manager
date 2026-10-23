@@ -36,6 +36,16 @@ describe('SearchableSelect', () => {
     expect(wrapper!.text()).toContain('gamma')
   })
 
+  it('shows ALL options on focus even when an option is already selected', async () => {
+    mountSelect({ modelValue: 'beta' })
+    await wrapper!.find('input').trigger('focus')
+    expect(wrapper!.text()).toContain('alpha')
+    expect(wrapper!.text()).toContain('beta')
+    expect(wrapper!.text()).toContain('gamma')
+    expect(wrapper!.text()).toContain('3 de 3 bases de datos')
+    expect(wrapper!.text()).not.toContain('Filtro:')
+  })
+
   it('filters options case-insensitively while typing', async () => {
     mountSelect()
     const input = wrapper!.find('input')

@@ -121,6 +121,15 @@ describe('mysqlFamily.ensureDatabase', () => {
     expect(sqlArg).not.toContain('SET GLOBAL');
     expect(sqlArg).toContain('CREATE DATABASE IF NOT EXISTS');
   });
+
+  test('drops and recreates the database when cleanDest is true', async () => {
+    execFile.mockImplementation((file, args, options, callback) => callback(null, '', ''));
+    await mysqlFamily.ensureDatabase({ host: 'h', port: 3306, user: 'root', pass: 'x', database: 'clean_db', cleanDest: true });
+    const [, args] = execFile.mock.calls[0];
+    const sqlArg = args[args.length - 1];
+    expect(sqlArg).toContain('DROP DATABASE IF EXISTS `clean_db`');
+    expect(sqlArg).toContain('CREATE DATABASE `clean_db`');
+  });
 });
 
 describe('mysqlFamily.spawnDump / spawnRestore', () => {

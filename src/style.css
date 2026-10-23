@@ -1,30 +1,202 @@
 @import "tailwindcss";
 
-:root {
-  --bks-bg: var(--theme-bg, #0c0f14);
-  --bks-card: var(--theme-base, #151921);
-  --bks-card-hover: #1a202c;
-  --bks-input: #0f131a;
-  --bks-border: var(--theme-secondary, rgba(255, 255, 255, 0.08));
-  --bks-border-subtle: rgba(255, 255, 255, 0.04);
-  --bks-text: var(--text, #f1f5f9);
-  --bks-muted: var(--text-light, #94a3b8);
-  --bks-dim: var(--text-lighter, #64748b);
-  --bks-accent: var(--theme-primary, #38bdf8);
-  --bks-accent-hover: #0284c7;
+/*
+ * Tokens semánticos del plugin.
+ *
+ * La paleta es propia (no hereda los colores de cada tema de Beekeeper) para
+ * garantizar contraste correcto en claro y oscuro. Beekeeper solo decide el
+ * modo (data-theme = light | dark), que se fija desde setupThemeSync().
+ *
+ * Referencia de diseño: Vercel (superficies por tono, hairlines, densidad
+ * compacta) y Cursor (radios pequeños, un único acento).
+ */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bks-canvas: #0c0f14;
+  --bks-surface-1: #141a22;
+  --bks-surface-2: #1b232e;
+  --bks-surface-3: #242e3b;
+  --bks-field: #0f141b;
+
+  --bks-line: rgba(255, 255, 255, 0.09);
+  --bks-line-strong: rgba(255, 255, 255, 0.16);
+
+  --bks-text-strong: #f8fafc;
+  --bks-text-primary: #e2e8f0;
+  --bks-text-secondary: #cbd5e1;
+  --bks-text-muted: #94a3b8;
+  --bks-text-dim: #7f8ea3;
+
+  --bks-accent: #7dd3fc;
+  --bks-accent-solid: #0369a1;
+  --bks-accent-solid-hover: #075985;
+  --bks-accent-tint: rgba(56, 189, 248, 0.14);
+  --bks-on-accent: #ffffff;
+
+  --bks-success: #6ee7b7;
+  --bks-success-solid: #047857;
+  --bks-success-tint: rgba(16, 185, 129, 0.14);
+
+  --bks-warning: #fcd34d;
+  --bks-warning-solid: #d97706;
+  --bks-warning-solid-hover: #f59e0b;
+  --bks-on-warning: #171717;
+  --bks-warning-tint: rgba(245, 158, 11, 0.14);
+
+  --bks-danger: #fda4af;
+  --bks-danger-solid: #e11d48;
+  --bks-danger-tint: rgba(244, 63, 94, 0.14);
+
+  --bks-purple: #d8b4fe;
+  --bks-purple-solid: #9333ea;
+  --bks-purple-tint: rgba(168, 85, 247, 0.16);
+
+  --bks-focus-ring: rgba(56, 189, 248, 0.28);
+  --bks-scroll-thumb: rgba(255, 255, 255, 0.14);
+  --bks-scroll-thumb-hover: rgba(255, 255, 255, 0.24);
 }
 
-html, body {
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bks-canvas: #fafafa;
+  --bks-surface-1: #ffffff;
+  --bks-surface-2: #f4f4f2;
+  --bks-surface-3: #ececea;
+  --bks-field: #f7f7f5;
+
+  --bks-line: rgba(23, 23, 23, 0.10);
+  --bks-line-strong: rgba(23, 23, 23, 0.18);
+
+  --bks-text-strong: #171717;
+  --bks-text-primary: #262626;
+  --bks-text-secondary: #404040;
+  --bks-text-muted: #6b6b6b;
+  --bks-text-dim: #6b6b6b;
+
+  --bks-accent: #0369a1;
+  --bks-accent-solid: #0369a1;
+  --bks-accent-solid-hover: #075985;
+  --bks-accent-tint: #e0f2fe;
+  --bks-on-accent: #ffffff;
+
+  --bks-success: #047857;
+  --bks-success-solid: #047857;
+  --bks-success-tint: #d1fae5;
+
+  --bks-warning: #b45309;
+  --bks-warning-solid: #d97706;
+  --bks-warning-solid-hover: #f59e0b;
+  --bks-on-warning: #171717;
+  --bks-warning-tint: #fef3c7;
+
+  --bks-danger: #be123c;
+  --bks-danger-solid: #e11d48;
+  --bks-danger-tint: #ffe4e6;
+
+  --bks-purple: #7e22ce;
+  --bks-purple-solid: #9333ea;
+  --bks-purple-tint: #f3e8ff;
+
+  --bks-focus-ring: rgba(2, 132, 199, 0.25);
+  --bks-scroll-thumb: rgba(23, 23, 23, 0.18);
+  --bks-scroll-thumb-hover: rgba(23, 23, 23, 0.30);
+}
+
+/* Alias usados por componentes existentes. */
+:root {
+  --bks-bg: var(--bks-canvas);
+  --bks-card: var(--bks-surface-1);
+  --bks-card-hover: var(--bks-surface-2);
+  --bks-input: var(--bks-field);
+  --bks-border: var(--bks-line);
+  --bks-border-subtle: var(--bks-line);
+  --bks-text: var(--bks-text-primary);
+  --bks-muted: var(--bks-text-muted);
+  --bks-dim: var(--bks-text-dim);
+  --bks-accent-hover: var(--bks-accent-solid-hover);
+}
+
+/*
+ * Remapeo de la escala de Tailwind a los tokens semánticos. Así todas las
+ * utilidades existentes (bg-slate-900, text-slate-400, border-white/[0.08],
+ * text-emerald-400, etc.) responden al modo claro/oscuro sin tocar cada
+ * plantilla. `inline` hace que las utilidades usen var() en tiempo de
+ * ejecución.
+ */
+@theme inline {
+  --color-slate-50: var(--bks-text-strong);
+  --color-slate-100: var(--bks-text-strong);
+  --color-slate-200: var(--bks-text-primary);
+  --color-slate-300: var(--bks-text-secondary);
+  --color-slate-400: var(--bks-text-muted);
+  --color-slate-500: var(--bks-text-dim);
+  --color-slate-600: var(--bks-line-strong);
+  --color-slate-700: var(--bks-surface-3);
+  --color-slate-800: var(--bks-surface-2);
+  --color-slate-900: var(--bks-surface-1);
+  --color-slate-950: var(--bks-field);
+
+  /* En claro, `white` como texto/borde se traduce a tinta; los botones
+     sólidos usan --bks-on-accent explícitamente. */
+  --color-white: var(--bks-text-strong);
+
+  --color-sky-100: var(--bks-accent);
+  --color-sky-200: var(--bks-accent);
+  --color-sky-300: var(--bks-accent);
+  --color-sky-400: var(--bks-accent);
+  --color-sky-500: var(--bks-accent-solid-hover);
+  --color-sky-600: var(--bks-accent-solid);
+  --color-sky-950: var(--bks-accent-tint);
+
+  --color-emerald-200: var(--bks-success);
+  --color-emerald-300: var(--bks-success);
+  --color-emerald-400: var(--bks-success);
+  --color-emerald-500: var(--bks-success-solid);
+  --color-emerald-600: var(--bks-success-solid);
+  --color-emerald-900: var(--bks-success-tint);
+  --color-emerald-950: var(--bks-success-tint);
+
+  --color-amber-100: var(--bks-warning);
+  --color-amber-200: var(--bks-warning);
+  --color-amber-300: var(--bks-warning);
+  --color-amber-400: var(--bks-warning);
+  --color-amber-500: var(--bks-warning-solid);
+  --color-amber-600: var(--bks-warning-solid);
+  --color-amber-950: var(--bks-warning-tint);
+
+  --color-rose-200: var(--bks-danger);
+  --color-rose-300: var(--bks-danger);
+  --color-rose-400: var(--bks-danger);
+  --color-rose-500: var(--bks-danger-solid);
+  --color-rose-600: var(--bks-danger-solid);
+  --color-rose-950: var(--bks-danger-tint);
+
+  --color-purple-300: var(--bks-purple);
+  --color-purple-400: var(--bks-purple);
+  --color-purple-500: var(--bks-purple-solid);
+}
+
+html,
+body {
   margin: 0;
   padding: 0;
-  background-color: var(--bks-bg);
-  color: var(--bks-text);
+  background-color: var(--bks-canvas);
+  color: var(--bks-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom sleek scrollbar matching Beekeeper Studio */
+::selection {
+  background: var(--bks-accent-tint);
+  color: var(--bks-text-strong);
+}
+
+/* Scrollbar fina, coherente en ambos modos. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -35,20 +207,30 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bks-scroll-thumb);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--bks-scroll-thumb-hover);
 }
 
-/* Input, Select & Button dark defaults */
-input, select, textarea {
-  color-scheme: dark;
+input,
+select,
+textarea {
+  color-scheme: inherit;
 }
 
 select option {
-  background-color: #151921;
-  color: #f1f5f9;
+  background-color: var(--bks-surface-1);
+  color: var(--bks-text-primary);
+}
+
+/* Foco visible y consistente en los tres modos. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bks-focus-ring);
 }

@@ -16,7 +16,7 @@
         <button
           @click="loadDictionary"
           :disabled="loading || !selectedDb"
-          class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
+          class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="loading ? 'animate-spin' : ''" />
           <span>{{ loading ? 'Analizando...' : 'Generar Diccionario' }}</span>

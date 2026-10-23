@@ -163,6 +163,7 @@ export async function getDatabasesList(params: {
   port: number;
   user: string;
   pass?: string;
+  name?: string;
 }): Promise<string[]> {
   try {
     const res = await fetch(`${COMPANION_URL}/api/databases`, {
@@ -270,6 +271,7 @@ export function startStreamClone(
     motor?: string;
     excludeTables?: string[];
     maskData?: boolean;
+    cleanDest?: boolean;
   },
   callbacks: {
     onLog: (msg: string) => void;

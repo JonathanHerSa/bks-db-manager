@@ -119,7 +119,7 @@
               type="button"
               @click="targetDialect = 'mysql'; regenerateScripts()"
               class="px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer"
-              :class="targetDialect === 'mysql' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+              :class="targetDialect === 'mysql' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
             >
               MySQL / MariaDB
             </button>
@@ -127,7 +127,7 @@
               type="button"
               @click="targetDialect = 'postgres'; regenerateScripts()"
               class="px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer"
-              :class="targetDialect === 'postgres' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+              :class="targetDialect === 'postgres' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
             >
               PostgreSQL
             </button>
@@ -148,7 +148,7 @@
           <button
             @click="runSchemaDiff"
             :disabled="isComparing || !sourceDb || !targetDb"
-            class="px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
+            class="px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
           >
             <Search class="w-4 h-4" :class="isComparing ? 'animate-spin' : ''" />
             <span>{{ isComparing ? 'Comparando esquemas...' : 'Comparar Esquemas' }}</span>
@@ -236,7 +236,7 @@
                 type="button"
                 @click="activeOutputTab = 'sql'"
                 class="px-3 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5"
-                :class="activeOutputTab === 'sql' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+                :class="activeOutputTab === 'sql' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
               >
                 <FileCode2 class="w-3.5 h-3.5" />
                 <span>Script SQL DDL</span>
@@ -245,7 +245,7 @@
                 type="button"
                 @click="activeOutputTab = 'laravel'"
                 class="px-3 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5"
-                :class="activeOutputTab === 'laravel' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+                :class="activeOutputTab === 'laravel' ? 'bg-rose-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
               >
                 <Code2 class="w-3.5 h-3.5" />
                 <span>Laravel Migration</span>
@@ -261,7 +261,7 @@
             <button
               v-if="activeOutputTab === 'sql'"
               @click="openInBeekeeperEditor"
-              class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.98]"
+              class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-[var(--bks-on-accent)] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.98]"
               title="Abrir este script en una nueva pestaña del editor de Beekeeper Studio"
             >
               <ExternalLink class="w-3.5 h-3.5" />
@@ -370,7 +370,8 @@ async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
   if (!conn) return [];
   const isCurrentActive = Boolean(
     currentBksConn.value &&
-    (conn.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() || conn.isBeekeeper)
+    (conn.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() ||
+      conn.id === `bks-${(currentBksConn.value as any).id}`)
   );
 
   return listDatabasesForConnection({
@@ -378,6 +379,7 @@ async function loadDbsForConn(conn: SavedConnection | null): Promise<string[]> {
     host: conn.host,
     port: conn.port || 3306,
     user: conn.user,
+    name: conn.name,
     isCurrentActive
   });
 }

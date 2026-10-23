@@ -69,7 +69,7 @@ export default {
     return columns;
   },
 
-  async ensureDatabase({ host, port, user, pass, database }) {
+  async ensureDatabase({ host, port, user, pass, database, cleanDest = false }) {
     const env = { ...process.env, MYSQL_PWD: pass || '' };
     const ident = escMysqlIdent(database || '');
     // NOTE (security): this used to also run `SET GLOBAL max_allowed_packet=...`
@@ -78,22 +78,24 @@ export default {
     // and fails outright on managed services like RDS/Aurora. The per-session
     // `--max-allowed-packet=512M` flag already passed to spawnDump/spawnRestore
     // is sufficient, so this only ever needs the idempotent CREATE DATABASE.
+    const sql = cleanDest
+      ? `DROP DATABASE IF EXISTS \`${ident}\`; CREATE DATABASE \`${ident}\` CHARACTER SET utf8mb4;`
+      : `CREATE DATABASE IF NOT EXISTS \`${ident}\` CHARACTER SET utf8mb4;`;
     await execFileAsync('mysql', [
       '-h', String(host), '-P', String(port), '-u', String(user),
-      '-e', `CREATE DATABASE IF NOT EXISTS \`${ident}\` CHARACTER SET utf8mb4;`
+      '-e', sql
     ], { env });
   },
 
   spawnDump({ host, port, user, pass, database, excludeTables }) {
     const dumpArgs = [
       `-h${host}`, `-P${port}`, `-u${user}`,
-      '--compress',
       '--single-transaction',
       '--quick',
       '--hex-blob',
       '--default-character-set=utf8mb4',
       '--max-allowed-packet=512M',
-      '--net-buffer-length=32768',
+      '--net-buffer-length=1048576',
       '--no-tablespaces',
       '--routines',
       '--triggers'
@@ -120,7 +122,7 @@ export default {
       '--batch',
       '--default-character-set=utf8mb4',
       '--max-allowed-packet=512M',
-      '--init-command=SET SESSION foreign_key_checks=0; SET SESSION unique_checks=0; SET SESSION sql_log_bin=0;',
+      '--init-command=SET SESSION autocommit=0; SET SESSION foreign_key_checks=0; SET SESSION unique_checks=0; SET SESSION sql_log_bin=0;',
       '--force',
       '--',
       database

@@ -59,23 +59,12 @@ export async function fetchCurrentConnection(): Promise<ConnectionData | null> {
 
 export async function fetchDatabases(): Promise<string[]> {
   try {
-    // 1. Try getSchemas()
-    try {
-      const schemas = await getSchemas();
-      if (Array.isArray(schemas) && schemas.length > 0) {
-        const ignore = ['information_schema', 'performance_schema', 'mysql', 'sys'];
-        const valid = schemas.filter(s => s && typeof s === 'string' && !ignore.includes(s.toLowerCase()));
-        if (valid.length > 0) return valid;
-      }
-    } catch {
-      // getSchemas might not be supported or error out on some engines
-    }
+    const ignore = ['information_schema', 'performance_schema', 'mysql', 'sys'];
 
-    // 2. Try SHOW DATABASES; (MySQL / MariaDB)
+    // 1. Try SHOW DATABASES; (MySQL / MariaDB / TiDB)
     try {
       const res = await runQuery('SHOW DATABASES;');
       const rows = res?.results?.[0]?.rows || [];
-      const ignore = ['information_schema', 'performance_schema', 'mysql', 'sys'];
       const dbs: string[] = [];
       for (const row of rows) {
         const val = row.Database || row.database || Object.values(row)[0];
@@ -85,23 +74,51 @@ export async function fetchDatabases(): Promise<string[]> {
       }
       if (dbs.length > 0) return dbs;
     } catch {
-      // not mysql
+      // not mysql / query failed
     }
 
-    // 3. Try PostgreSQL pg_database
+    // 2. Try PostgreSQL pg_database
     try {
       const res = await runQuery("SELECT datname FROM pg_database WHERE datistemplate = false;");
       const rows = res?.results?.[0]?.rows || [];
+      const pgIgnore = ['postgres', 'template0', 'template1'];
       const dbs: string[] = [];
       for (const row of rows) {
         const val = row.datname || Object.values(row)[0];
-        if (val && typeof val === 'string' && val.toLowerCase() !== 'postgres') {
+        if (val && typeof val === 'string' && !pgIgnore.includes(val.toLowerCase())) {
           dbs.push(val);
         }
       }
       if (dbs.length > 0) return dbs;
     } catch {
-      // not postgres
+      // not postgres / query failed
+    }
+
+    // 3. Try SQL Server sys.databases
+    try {
+      const res = await runQuery("SELECT name FROM sys.databases WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb');");
+      const rows = res?.results?.[0]?.rows || [];
+      const dbs: string[] = [];
+      for (const row of rows) {
+        const val = row.name || Object.values(row)[0];
+        if (val && typeof val === 'string') {
+          dbs.push(val);
+        }
+      }
+      if (dbs.length > 0) return dbs;
+    } catch {
+      // not sql server / query failed
+    }
+
+    // 4. Fallback: getSchemas() (useful for engines where schemas represent distinct namespaces or queries are restricted)
+    try {
+      const schemas = await getSchemas();
+      if (Array.isArray(schemas) && schemas.length > 0) {
+        const valid = schemas.filter(s => s && typeof s === 'string' && !ignore.includes(s.toLowerCase()));
+        if (valid.length > 0) return valid;
+      }
+    } catch {
+      // getSchemas might not be supported or error out on some engines
     }
 
     return [];
@@ -427,25 +444,46 @@ export async function executeQuery(query: string): Promise<any> {
 export async function setupThemeSync(): Promise<void> {
   try {
     const appInfo = await getAppInfo();
-    applyTheme(appInfo.theme?.cssString);
+    applyTheme(appInfo.theme);
 
     addNotificationListener('themeChanged', (theme: any) => {
-      applyTheme(theme?.cssString);
+      applyTheme(theme);
     });
   } catch (err) {
     console.warn('Theme sync error (running outside Beekeeper?):', err);
   }
 }
 
-function applyTheme(cssString?: string) {
+type ThemePayload = {
+  type?: 'light' | 'dark' | string;
+  cssString?: string;
+} | string;
+
+function applyTheme(theme?: ThemePayload) {
+  if (!theme) return;
+
+  const cssString = typeof theme === 'string' ? theme : theme.cssString;
+  const type = typeof theme === 'object' ? theme.type : undefined;
+
+  // Beekeeper decide el modo; el plugin expone sus propios tokens para claro
+  // y oscuro (ver src/style.css).
+  if (type === 'light' || type === 'dark') {
+    document.documentElement.dataset.theme = type;
+    document.documentElement.style.colorScheme = type;
+  }
+
   if (!cssString) return;
+
   let styleEl = document.getElementById('app-theme');
   if (!styleEl) {
     styleEl = document.createElement('style');
     styleEl.id = 'app-theme';
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent = cssString;
+  // Beekeeper envía las variables como lista de declaraciones (`--x: y;`),
+  // no como una regla CSS. Sin envolverlas en `:root`, el navegador las ignora.
+  const hasRule = cssString.includes('{');
+  styleEl.textContent = hasRule ? cssString : `:root { ${cssString} }`;
 }
 
 export function showNotification(message: string, type: 'info' | 'error' | 'success' | 'warning' = 'info') {
@@ -525,9 +563,9 @@ export async function openTableInBeekeeper(
   database?: string,
   onError?: (message: string) => void
 ): Promise<boolean> {
-  // Beekeeper 6.x resuelve la tabla con `name`, aunque el SDK tipa `table`: se envían ambos.
+  // El SDK 1.7.3+ tipa `name`; el host siempre resolvió la tabla con esa propiedad.
   const open = (withSchema?: string) => {
-    const options = { table, name: table, schema: withSchema, database };
+    const options = { name: table, schema: withSchema, database };
     // Si el host lanza antes de responder, la promesa podría quedar colgada: se limita la espera.
     return Promise.race([
       openTab('tableTable', options),
@@ -647,6 +685,10 @@ export function extractTableFromViewContext(context: any): string | null {
   if (typeof p === 'string' && p.trim()) return p.trim();
   if (p?.table && typeof p.table === 'string') return p.table.trim();
   if (p?.tableName && typeof p.tableName === 'string') return p.tableName.trim();
+  // Beekeeper 6.2+: el contexto del menú de entidad llega como `params.entity`.
+  if (p?.entity && typeof p.entity.name === 'string' && (!p.entity.type || p.entity.type === 'table')) {
+    return p.entity.name.trim();
+  }
   if (p?.target?.table && typeof p.target.table === 'string') return p.target.table.trim();
   if (p?.target?.type === 'table' && typeof p.target.name === 'string') return p.target.name.trim();
   return null;

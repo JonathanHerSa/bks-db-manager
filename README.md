@@ -77,10 +77,19 @@ git clone https://github.com/JonathanHerSa/bks-db-manager.git
 cd bks-db-manager
 npm install
 npm run build
-ln -s "$(pwd)" ~/.config/beekeeper-studio/plugins/bks-db-manager
+ln -s "$(pwd)" ~/.config/beekeeper-studio/plugins/t3zca-db-manager
 ```
 
 `npm install` ya deja el companion daemon corriendo en segundo plano y configurado para arrancar solo, apuntando al repo clonado (no al binario nativo) — no hace falta ningún comando adicional ni volver a abrir una terminal para usar el plugin.
+
+> **Beekeeper Studio 6.2+**: el sistema de plugins añadió `unlistedDisabled`, activo por defecto. Para que Beekeeper cargue el symlink de desarrollo, añade esto a `~/.config/beekeeper-studio/user.config.ini`:
+>
+> ```ini
+> [pluginSystem]
+> disabled = false
+> unlistedDisabled = false
+> communityDisabled = false
+> ```
 
 #### Gestión manual del servicio (opcional)
 

@@ -62,7 +62,8 @@ import {
   confirmAction,
   exportToFile,
   fetchViewContext,
-  extractTableFromViewContext
+  extractTableFromViewContext,
+  setupThemeSync
 } from './beekeeper'
 
 beforeEach(() => {
@@ -111,24 +112,24 @@ describe('fetchCurrentConnection', () => {
 })
 
 describe('fetchDatabases', () => {
-  it('uses getSchemas() when it returns valid schemas', async () => {
-    getSchemas.mockResolvedValue(['app_db', 'information_schema', 'sys'])
-    const result = await fetchDatabases()
-    expect(result).toEqual(['app_db'])
-    expect(runQuery).not.toHaveBeenCalled()
-  })
-
-  it('falls back to SHOW DATABASES when getSchemas is unsupported', async () => {
-    getSchemas.mockRejectedValue(new Error('not supported'))
+  it('uses SHOW DATABASES for MySQL / MariaDB when query succeeds', async () => {
     runQuery.mockResolvedValueOnce({ results: [{ rows: [{ Database: 'app_db' }, { Database: 'mysql' }] }] })
     const result = await fetchDatabases()
     expect(result).toEqual(['app_db'])
+    expect(getSchemas).not.toHaveBeenCalled()
   })
 
   it('falls back to pg_database for Postgres when SHOW DATABASES fails', async () => {
-    getSchemas.mockRejectedValue(new Error('not supported'))
     runQuery.mockRejectedValueOnce(new Error('syntax error'))
     runQuery.mockResolvedValueOnce({ results: [{ rows: [{ datname: 'app_db' }, { datname: 'postgres' }] }] })
+    const result = await fetchDatabases()
+    expect(result).toEqual(['app_db'])
+    expect(getSchemas).not.toHaveBeenCalled()
+  })
+
+  it('falls back to getSchemas when SQL queries fail or are unsupported', async () => {
+    runQuery.mockRejectedValue(new Error('query not supported'))
+    getSchemas.mockResolvedValue(['app_db', 'information_schema', 'sys'])
     const result = await fetchDatabases()
     expect(result).toEqual(['app_db'])
   })
@@ -512,7 +513,7 @@ describe('openTableInBeekeeper', () => {
     openTab.mockResolvedValue(undefined)
     const result = await openTableInBeekeeper('users', 'public', 'mydb')
     expect(result).toBe(true)
-    expect(openTab).toHaveBeenCalledWith('tableTable', { table: 'users', name: 'users', schema: 'public', database: 'mydb' })
+    expect(openTab).toHaveBeenCalledWith('tableTable', { name: 'users', schema: 'public', database: 'mydb' })
   })
 
   it('retries without schema when the host cannot find the table with it', async () => {
@@ -521,7 +522,7 @@ describe('openTableInBeekeeper', () => {
       .mockResolvedValueOnce(undefined)
     const result = await openTableInBeekeeper('users', 'mydb', 'mydb')
     expect(result).toBe(true)
-    expect(openTab).toHaveBeenLastCalledWith('tableTable', { table: 'users', name: 'users', schema: undefined, database: 'mydb' })
+    expect(openTab).toHaveBeenLastCalledWith('tableTable', { name: 'users', schema: undefined, database: 'mydb' })
   })
 
   it('returns false on error', async () => {
@@ -586,6 +587,28 @@ describe('exportToFile', () => {
   })
 })
 
+describe('setupThemeSync', () => {
+  it('aplica el modo y envuelve las variables en :root', async () => {
+    getAppInfo.mockResolvedValue({ theme: { type: 'light', cssString: '--text: #262626;' } })
+    await setupThemeSync()
+
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+    expect(document.getElementById('app-theme')?.textContent).toBe(':root { --text: #262626; }')
+  })
+
+  it('actualiza el modo al recibir themeChanged', async () => {
+    getAppInfo.mockResolvedValue({ theme: { type: 'dark', cssString: '--text: #fff;' } })
+    await setupThemeSync()
+
+    const handler = addNotificationListener.mock.calls.find((c) => c[0] === 'themeChanged')?.[1]
+    handler({ type: 'light', cssString: '--text: #000;' })
+
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+  })
+})
+
 describe('fetchViewContext & extractTableFromViewContext', () => {
   it('fetches view context from SDK', async () => {
     getViewContext.mockResolvedValue({ command: 'open-db-manager-table', params: { table: 'customers' } })
@@ -601,6 +624,9 @@ describe('fetchViewContext & extractTableFromViewContext', () => {
   it.each([
     [{ params: { table: 'orders' } }, 'orders'],
     [{ params: { tableName: 'products' } }, 'products'],
+    [{ params: { entity: { type: 'table', name: 'auditores' } } }, 'auditores'],
+    [{ params: { entity: { name: 'customers' } } }, 'customers'],
+    [{ params: { entity: { type: 'view', name: 'v_orders' } } }, null],
     [{ params: { target: { table: 'users' } } }, 'users'],
     [{ params: { target: { type: 'table', name: 'invoices' } } }, 'invoices'],
     [{ params: 'customers' }, 'customers'],

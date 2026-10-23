@@ -214,7 +214,7 @@
                 @click="refreshProjects"
                 :disabled="loadingProjects"
                 type="button"
-                class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-sm active:scale-[0.98]"
+                class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-[var(--bks-on-accent)] rounded-lg text-xs font-medium flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-sm active:scale-[0.98]"
               >
                 <RefreshCw class="w-3.5 h-3.5" :class="loadingProjects ? 'animate-spin' : ''" />
                 <span>{{ loadingProjects ? 'Buscando...' : 'Escanear' }}</span>

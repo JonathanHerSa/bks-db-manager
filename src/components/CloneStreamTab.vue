@@ -286,6 +286,14 @@
             <span class="text-[11px] text-slate-400 block mt-0.5">Remueve automáticamente cláusulas <code>DEFINER</code>, <code>USE</code>, <code>CREATE DATABASE</code> y <code>SQL_LOG_BIN</code>.</span>
           </div>
         </label>
+
+        <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/10 cursor-pointer transition-colors">
+          <input type="checkbox" v-model="cleanDest" class="mt-0.5 rounded text-sky-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 border-white/20" />
+          <div>
+            <span class="text-xs font-medium text-slate-200 block">Recrear base de datos destino (Idempotencia / Clean Slate)</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">Ejecuta <code>DROP DATABASE IF EXISTS</code> antes de clonar para limpiar tablas huérfanas o intentos parciales.</span>
+          </div>
+        </label>
       </div>
 
       <!-- Table checklist -->
@@ -388,7 +396,7 @@
           <button
             @click="startClone"
             :disabled="!canClone"
-            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.98]"
+            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.98]"
           >
             <Play class="w-4 h-4 fill-current" />
             <span>Iniciar Clonado Stream</span>
@@ -404,7 +412,7 @@
         <button
           v-else
           @click="stopClone"
-          class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer animate-pulse active:scale-[0.98]"
+          class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer animate-pulse active:scale-[0.98]"
         >
           <Square class="w-4 h-4 fill-current" />
           <span>Detener Operación</span>
@@ -552,6 +560,7 @@ const availableTables = ref<string[]>([]);
 const selectedTables = ref<string[]>([]);
 const maskData = ref(false);
 const autoSanitize = ref(true);
+const cleanDest = ref(true);
 
 const sourceDbStats = ref<{ mb: number; tables: number; sqlMb: number } | null>(null);
 const isCloning = ref(false);
@@ -704,7 +713,7 @@ async function loadSourceDbs() {
   const isCurrentActive = Boolean(
     currentBksConn.value &&
     (selectedSourceConn.value?.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() ||
-      selectedSourceConn.value?.isBeekeeper)
+      selectedSourceConn.value?.id === `bks-${(currentBksConn.value as any).id}`)
   );
 
   sourceDbs.value = await listDatabasesForConnection({
@@ -713,6 +722,7 @@ async function loadSourceDbs() {
     port: source.value.port,
     user: source.value.user,
     pass: source.value.pass,
+    name: selectedSourceConn.value !== 'custom' ? selectedSourceConn.value?.name : undefined,
     isCurrentActive
   });
   loadingSourceDbs.value = false;
@@ -737,7 +747,7 @@ async function loadDestDbs() {
   const isCurrentActive = Boolean(
     currentBksConn.value &&
     (selectedDestConn.value?.name?.toLowerCase() === currentBksConn.value.connectionName?.toLowerCase() ||
-      selectedDestConn.value?.isBeekeeper)
+      selectedDestConn.value?.id === `bks-${(currentBksConn.value as any).id}`)
   );
 
   destDbs.value = await listDatabasesForConnection({
@@ -746,6 +756,7 @@ async function loadDestDbs() {
     port: dest.value.port,
     user: dest.value.user,
     pass: dest.value.pass,
+    name: selectedDestConn.value !== 'custom' ? selectedDestConn.value?.name : undefined,
     isCurrentActive
   });
   loadingDestDbs.value = false;
@@ -844,7 +855,8 @@ function startClone() {
       dstDb: dest.value.db,
       motor: source.value.motor,
       excludeTables: excluded,
-      maskData: maskData.value
+      maskData: maskData.value,
+      cleanDest: cleanDest.value
     },
     {
       onLog: (msg) => {

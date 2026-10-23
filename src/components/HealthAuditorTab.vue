@@ -12,7 +12,7 @@
             type="button"
             @click="activeSubTab = 'health'"
             class="px-3 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5"
-            :class="activeSubTab === 'health' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+            :class="activeSubTab === 'health' ? 'bg-emerald-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           >
             <HeartPulse class="w-3.5 h-3.5" />
             <span>Diagnóstico & Salud</span>
@@ -21,7 +21,7 @@
             type="button"
             @click="activeSubTab = 'processlist'; loadProcesslist()"
             class="px-3 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5"
-            :class="activeSubTab === 'processlist' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+            :class="activeSubTab === 'processlist' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           >
             <Cpu class="w-3.5 h-3.5" />
             <span>Monitor de Procesos</span>
@@ -58,7 +58,7 @@
               type="button"
               @click="dialect = 'mysql'"
               class="px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer"
-              :class="dialect === 'mysql' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+              :class="dialect === 'mysql' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
             >
               MySQL / MariaDB
             </button>
@@ -66,7 +66,7 @@
               type="button"
               @click="dialect = 'postgres'"
               class="px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer"
-              :class="dialect === 'postgres' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+              :class="dialect === 'postgres' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
             >
               PostgreSQL
             </button>
@@ -75,7 +75,7 @@
           <button
             @click="runAudit"
             :disabled="loadingAudit || !selectedDb"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
           >
             <RefreshCw class="w-3.5 h-3.5" :class="loadingAudit ? 'animate-spin' : ''" />
             <span>{{ loadingAudit ? 'Auditando...' : 'Ejecutar Diagnóstico' }}</span>
@@ -286,7 +286,7 @@
                 <td class="px-4 py-2.5 text-center">
                   <button
                     @click="confirmKill(p)"
-                    class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded border border-rose-500/30 text-[11px] font-medium transition cursor-pointer"
+                    class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-[var(--bks-on-accent)] rounded border border-rose-500/30 text-[11px] font-medium transition cursor-pointer"
                     title="Detener consulta (KILL QUERY)"
                   >
                     Detener
@@ -328,7 +328,7 @@
           <button
             @click="executeKill"
             :disabled="killing"
-            class="px-4 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-500 disabled:opacity-50 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+            class="px-4 py-1.5 text-xs font-medium text-[var(--bks-on-accent)] bg-rose-600 hover:bg-rose-500 disabled:opacity-50 rounded-lg transition cursor-pointer flex items-center gap-1.5"
           >
             <RefreshCw v-if="killing" class="w-3.5 h-3.5 animate-spin" />
             <span>{{ killing ? 'Deteniendo...' : 'Confirmar y Detener' }}</span>

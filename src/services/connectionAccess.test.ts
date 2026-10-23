@@ -19,13 +19,23 @@ beforeEach(() => {
 })
 
 describe('listDatabasesForConnection', () => {
-  it('uses the Beekeeper SDK when isCurrentActive is true and it returns results', async () => {
-    fetchDatabases.mockResolvedValue(['app_db'])
+  it('uses the Beekeeper SDK when isCurrentActive is true and it returns multiple results', async () => {
+    fetchDatabases.mockResolvedValue(['app_db', 'app_db_2'])
     const result = await listDatabasesForConnection({
       motor: 'mysql', host: '127.0.0.1', port: 3306, user: 'root', isCurrentActive: true
     })
-    expect(result).toEqual(['app_db'])
+    expect(result).toEqual(['app_db', 'app_db_2'])
     expect(getDatabasesList).not.toHaveBeenCalled()
+  })
+
+  it('queries companion daemon when SDK only returns 1 database and companion has more', async () => {
+    fetchDatabases.mockResolvedValue(['app_db'])
+    getDatabasesList.mockResolvedValue(['app_db', 'app_db_2', 'app_db_3'])
+    const result = await listDatabasesForConnection({
+      motor: 'mysql', host: '127.0.0.1', port: 3306, user: 'root', isCurrentActive: true
+    })
+    expect(result).toEqual(['app_db', 'app_db_2', 'app_db_3'])
+    expect(getDatabasesList).toHaveBeenCalled()
   })
 
   it('falls back to the companion daemon when the SDK returns an empty list', async () => {
@@ -35,7 +45,7 @@ describe('listDatabasesForConnection', () => {
       motor: 'postgresql', host: 'h', port: 5432, user: 'u', isCurrentActive: true
     })
     expect(result).toEqual(['from_companion'])
-    expect(getDatabasesList).toHaveBeenCalledWith({ motor: 'postgresql', host: 'h', port: 5432, user: 'u', pass: undefined })
+    expect(getDatabasesList).toHaveBeenCalledWith({ motor: 'postgresql', host: 'h', port: 5432, user: 'u', pass: undefined, name: undefined })
   })
 
   it('falls back to the companion daemon when the SDK throws', async () => {

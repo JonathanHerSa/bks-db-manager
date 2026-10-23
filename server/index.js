@@ -946,7 +946,8 @@ app.post('/api/clone/stream', (req, res) => {
     dstHost, dstPort = 3306, dstUser, dstPass = '', dstDb,
     motor = 'mysql',
     excludeTables = [],
-    maskData = false
+    maskData = false,
+    cleanDest = false
   } = req.body;
 
   const normMotor = normalizeMotor(motor);
@@ -1017,7 +1018,7 @@ app.post('/api/clone/stream', (req, res) => {
   // (server/engines/*.js) — see shared/dbEngines.js for which motors resolve
   // to which adapter.
   let earlyFinished = false;
-  engine.ensureDatabase({ host: dstHost, port: dstPort, user: dstUser, pass: dstPass, database: dstDb }).catch((err) => {
+  engine.ensureDatabase({ host: dstHost, port: dstPort, user: dstUser, pass: dstPass, database: dstDb, cleanDest }).catch((err) => {
     sendEvent('log', { message: `Aviso al verificar/crear base destino: ${safeErrorMessage(err, 'no se pudo verificar/crear automáticamente')}` });
   }).finally(() => {
    // NOTE (reliability): a synchronous throw anywhere in this block (e.g. an
@@ -1087,7 +1088,7 @@ app.post('/api/clone/stream', (req, res) => {
     dstProc.stderr.on('data', (d) => {
       const msg = d.toString();
       if (!msg.includes('Using a password on the command line')) {
-        if (msg.includes('ERROR 3105') || msg.includes('generated column')) {
+        if (msg.includes('ERROR 3105')) {
           const tableName = msg.match(/in table '([^']+)'/)?.[1] || 'telemetría';
           sendEvent('log', { message: `[RESTORE AVISO] Tabla '${tableName}': fila con columna virtual omitida (MySQL 8.0 evalúa la columna automáticamente).` });
         } else {

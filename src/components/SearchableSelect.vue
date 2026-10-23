@@ -8,6 +8,7 @@
         :value="displayValue"
         @input="onInput"
         @focus="onFocus"
+        @click="onClick"
         @keydown="onKeyDown"
         :placeholder="placeholder"
         :disabled="disabled"
@@ -59,7 +60,7 @@
           class="px-3 py-1.5 bg-slate-950/80 border-b border-white/[0.06] text-[10px] font-mono text-slate-400 flex items-center justify-between select-none"
         >
           <span>{{ filteredOptions.length }} de {{ options.length }} bases de datos</span>
-          <span v-if="searchQuery" class="text-sky-400 truncate max-w-[150px]">Filtro: "{{ searchQuery }}"</span>
+          <span v-if="userIsSearching && searchQuery" class="text-sky-400 truncate max-w-[150px]">Filtro: "{{ searchQuery }}"</span>
         </div>
 
         <!-- Options list -->
@@ -135,6 +136,7 @@ const listRef = ref<HTMLElement | null>(null);
 const optionRefs = ref<HTMLElement[]>([]);
 
 const isOpen = ref(false);
+const userIsSearching = ref(false);
 const searchQuery = ref('');
 const activeIndex = ref(-1);
 
@@ -144,9 +146,9 @@ function setOptionRef(el: any, idx: number) {
   }
 }
 
-// Display value: show search query while typing/searching, otherwise current modelValue
+// Display value: show search query while user is actively typing, otherwise current modelValue
 const displayValue = computed(() => {
-  if (isOpen.value) {
+  if (isOpen.value && userIsSearching.value) {
     return searchQuery.value;
   }
   return props.modelValue || '';
@@ -154,6 +156,9 @@ const displayValue = computed(() => {
 
 // Filtered options based on case-insensitive search
 const filteredOptions = computed(() => {
+  if (!userIsSearching.value) {
+    return props.options;
+  }
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) {
     return props.options;
@@ -163,6 +168,7 @@ const filteredOptions = computed(() => {
 
 function onInput(e: Event) {
   const val = (e.target as HTMLInputElement).value;
+  userIsSearching.value = true;
   searchQuery.value = val;
   if (!isOpen.value) {
     isOpen.value = true;
@@ -174,13 +180,20 @@ function onInput(e: Event) {
 }
 
 function onFocus() {
-  searchQuery.value = props.modelValue || '';
+  userIsSearching.value = false;
+  searchQuery.value = '';
   isOpen.value = true;
-  activeIndex.value = Math.max(0, filteredOptions.value.indexOf(props.modelValue));
+  activeIndex.value = Math.max(0, props.options.indexOf(props.modelValue));
   nextTick(() => {
     inputRef.value?.select();
     scrollToActive();
   });
+}
+
+function onClick() {
+  if (!isOpen.value) {
+    onFocus();
+  }
 }
 
 function toggleDropdown() {
@@ -194,6 +207,7 @@ function toggleDropdown() {
 
 function closeDropdown() {
   isOpen.value = false;
+  userIsSearching.value = false;
   searchQuery.value = '';
   activeIndex.value = -1;
 }
@@ -208,6 +222,7 @@ function clearSelection() {
   emit('update:modelValue', '');
   emit('change', '');
   searchQuery.value = '';
+  userIsSearching.value = false;
   nextTick(() => {
     inputRef.value?.focus();
   });

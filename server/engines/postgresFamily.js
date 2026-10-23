@@ -68,9 +68,17 @@ export default {
     return columns;
   },
 
-  async ensureDatabase({ host, port, user, pass, database }) {
+  async ensureDatabase({ host, port, user, pass, database, cleanDest = false }) {
     const env = { ...process.env, PGPASSWORD: pass || '' };
     const ident = escPgIdent(database || '');
+    if (cleanDest) {
+      try {
+        await execFileAsync('psql', [
+          '-h', String(host), '-p', String(port), '-U', String(user), 'postgres',
+          '-c', `DROP DATABASE IF EXISTS "${ident}";`
+        ], { env });
+      } catch {}
+    }
     await execFileAsync('psql', [
       '-h', String(host), '-p', String(port), '-U', String(user), 'postgres',
       '-c', `CREATE DATABASE "${ident}";`

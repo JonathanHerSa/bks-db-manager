@@ -80,7 +80,7 @@
         <button
           type="button"
           @click="returnToPreviousTable"
-          class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-medium transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+          class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-[var(--bks-on-accent)] rounded text-xs font-medium transition cursor-pointer flex items-center gap-1.5 shadow-sm"
         >
           <ArrowLeft class="w-3.5 h-3.5" />
           <span>Volver a {{ previousTable }}</span>
@@ -98,7 +98,7 @@
             type="button"
             @click="seedCascadeGraph"
             :disabled="seedingCascade"
-            class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50 active:scale-[0.98]"
+            class="px-3 py-1.5 bg-[var(--bks-warning-solid)] hover:bg-[var(--bks-warning-solid-hover)] text-[var(--bks-on-warning)] font-semibold rounded text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50 active:scale-[0.98]"
           >
             <Sparkles class="w-3.5 h-3.5" :class="seedingCascade ? 'animate-spin' : ''" />
             <span>{{ seedingCascade ? 'Poblando en Cascada...' : 'Poblar Todo en Cascada (DAG)' }}</span>
@@ -252,7 +252,7 @@
         <button
           @click="generateMockRows"
           :disabled="!selectedTable || generating"
-          class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
+          class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
         >
           <Eye class="w-4 h-4" />
           <span>{{ generating ? 'Generando...' : `Previsualizar ${rowCount} Filas` }}</span>
@@ -262,7 +262,7 @@
           <button
             @click="insertIntoDatabase"
             :disabled="inserting"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
           >
             <Database class="w-4 h-4" />
             <span>{{ inserting ? 'Insertando...' : 'Insertar en Base de Datos' }}</span>
@@ -321,7 +321,7 @@
             v-if="insertSuccess && previousTable"
             @click="returnToPreviousTable"
             type="button"
-            class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-medium transition cursor-pointer flex items-center gap-1"
+            class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-[var(--bks-on-accent)] rounded text-xs font-medium transition cursor-pointer flex items-center gap-1"
           >
             <ArrowLeft class="w-3 h-3" />
             <span>Volver a {{ previousTable }}</span>

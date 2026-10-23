@@ -12,7 +12,7 @@
             <div class="flex items-center gap-2">
               <h1 class="text-sm font-semibold tracking-tight text-white">DB Manager Pro</h1>
               <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                v1.0
+                v{{ pkg.version }}
               </span>
             </div>
             <p class="text-[11px] text-slate-400">Toolkit avanzado para sincronización, clonado y generación de datos</p>
@@ -92,6 +92,7 @@ import {
   extractTableFromViewContext,
   type ConnectionData
 } from './services/beekeeper';
+import pkg from '../package.json';
 
 import SnapshotsTab from './components/SnapshotsTab.vue';
 import CloneStreamTab from './components/CloneStreamTab.vue';
