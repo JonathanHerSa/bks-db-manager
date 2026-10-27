@@ -5,10 +5,10 @@
       <div>
         <div class="flex items-center gap-2">
           <BookOpen class="w-5 h-5 text-sky-400" />
-          <h2 class="text-base font-semibold text-white">Diccionario de Datos</h2>
+          <h2 class="text-base font-semibold text-white">{{ t('Diccionario de Datos') }}</h2>
         </div>
         <p class="text-xs text-slate-400 mt-1">
-          Documentación técnica viva, catálogo de tablas, tipos de columnas, relaciones de claves foráneas y exportación en Markdown.
+          {{ t('Documentación técnica viva, catálogo de tablas, tipos de columnas, relaciones de claves foráneas y exportación en Markdown.') }}
         </p>
       </div>
 
@@ -19,7 +19,7 @@
           class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="loading ? 'animate-spin' : ''" />
-          <span>{{ loading ? 'Analizando...' : 'Generar Diccionario' }}</span>
+          <span>{{ loading ? t('Analizando...') : t('Generar Diccionario') }}</span>
         </button>
       </div>
     </div>
@@ -29,9 +29,9 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-medium text-slate-400">Base de Datos</label>
+            <label class="block text-xs font-medium text-slate-400">{{ t('Base de Datos') }}</label>
             <span v-if="databases.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono">
-              {{ databases.length }} BDs
+              {{ t('{count} BDs', { count: databases.length }) }}
             </span>
           </div>
           <SearchableSelect
@@ -46,15 +46,15 @@
         <div v-if="tablesData.length > 0" class="md:col-span-2 flex flex-wrap items-center gap-3 md:justify-end pt-2 md:pt-0">
           <div class="px-3.5 py-2 rounded-lg bg-slate-950/70 border border-white/[0.06] text-center min-w-[100px]">
             <div class="text-lg font-bold text-sky-400 font-mono">{{ tablesData.length }}</div>
-            <div class="text-[10px] text-slate-400 uppercase font-medium">Tablas</div>
+            <div class="text-[10px] text-slate-400 uppercase font-medium">{{ t('Tablas') }}</div>
           </div>
           <div class="px-3.5 py-2 rounded-lg bg-slate-950/70 border border-white/[0.06] text-center min-w-[100px]">
             <div class="text-lg font-bold text-emerald-400 font-mono">{{ totalColumnsCount }}</div>
-            <div class="text-[10px] text-slate-400 uppercase font-medium">Columnas</div>
+            <div class="text-[10px] text-slate-400 uppercase font-medium">{{ t('Columnas') }}</div>
           </div>
           <div class="px-3.5 py-2 rounded-lg bg-slate-950/70 border border-white/[0.06] text-center min-w-[100px]">
             <div class="text-lg font-bold text-purple-400 font-mono">{{ totalFkCount }}</div>
-            <div class="text-[10px] text-slate-400 uppercase font-medium">Relaciones FK</div>
+            <div class="text-[10px] text-slate-400 uppercase font-medium">{{ t('Relaciones FK') }}</div>
           </div>
         </div>
       </div>
@@ -63,7 +63,7 @@
     <!-- Loading progress -->
     <div v-if="loading" class="p-8 text-center bg-slate-900/40 rounded-xl border border-white/[0.08] space-y-3">
       <RefreshCw class="w-6 h-6 text-sky-400 animate-spin mx-auto" />
-      <p class="text-xs text-slate-300 font-medium">Inspeccionando esquema, columnas y relaciones foráneas...</p>
+      <p class="text-xs text-slate-300 font-medium">{{ t('Inspeccionando esquema, columnas y relaciones foráneas...') }}</p>
       <p class="text-[11px] text-slate-500 font-mono">{{ progressMessage }}</p>
     </div>
 
@@ -78,7 +78,7 @@
             class="px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition cursor-pointer"
           >
             <Table class="w-3.5 h-3.5 text-emerald-400" />
-            <span>Diccionario de Tablas</span>
+            <span>{{ t('Diccionario de Tablas') }}</span>
           </button>
           <button
             @click="activeView = 'markdown'"
@@ -86,7 +86,7 @@
             class="px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-2 transition cursor-pointer"
           >
             <FileText class="w-3.5 h-3.5 text-amber-400" />
-            <span>Documento Markdown</span>
+            <span>{{ t('Documento Markdown') }}</span>
           </button>
         </div>
 
@@ -95,10 +95,10 @@
           <button
             @click="exportMarkdownDoc"
             class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-            title="Descargar documentación en formato Markdown"
+            :title="t('Descargar documentación en formato Markdown')"
           >
             <Download class="w-3.5 h-3.5 text-slate-400" />
-            <span>Exportar Markdown</span>
+            <span>{{ t('Exportar Markdown') }}</span>
           </button>
         </div>
       </div>
@@ -110,11 +110,11 @@
           <input
             v-model="tableFilter"
             type="text"
-            placeholder="Filtrar tablas por nombre..."
+            :placeholder="t('Filtrar tablas por nombre...')"
             class="w-full sm:max-w-xs bg-slate-900 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
           />
           <span class="text-xs text-slate-500 font-mono">
-            Mostrando {{ filteredTables.length }} de {{ tablesData.length }} tablas
+            {{ t('Mostrando {shown} de {total} tablas', { shown: filteredTables.length, total: tablesData.length }) }}
           </span>
         </div>
 
@@ -131,10 +131,10 @@
                 <Database class="w-4 h-4 text-emerald-400" />
                 <h3 class="text-sm font-semibold text-white font-mono">{{ tbl.name }}</h3>
                 <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/[0.06] font-mono">
-                  {{ tbl.rowCount !== undefined ? `${tbl.rowCount} filas` : 'N/A' }}
+                  {{ tbl.rowCount !== undefined ? t('{count} filas', { count: tbl.rowCount }) : 'N/A' }}
                 </span>
                 <span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">
-                  {{ tbl.columns.length }} columnas
+                  {{ t('{count} columnas', { count: tbl.columns.length }) }}
                 </span>
               </div>
 
@@ -142,10 +142,10 @@
                 <button
                   @click="openTableNative(tbl.name, tbl.schema)"
                   class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
-                  title="Abrir vista de datos de esta tabla en Beekeeper"
+                  :title="t('Abrir vista de datos de esta tabla en Beekeeper')"
                 >
                   <ExternalLink class="w-3 h-3 text-sky-400" />
-                  <span>Ver en Beekeeper</span>
+                  <span>{{ t('Ver en Beekeeper') }}</span>
                 </button>
               </div>
             </div>
@@ -155,9 +155,9 @@
               <table class="w-full text-xs text-left font-mono">
                 <thead class="bg-slate-950/80 text-slate-400 uppercase text-[10px] border-b border-white/[0.06]">
                   <tr>
-                    <th class="p-2.5">Columna</th>
-                    <th class="p-2.5">Tipo</th>
-                    <th class="p-2.5">Clave / Relación</th>
+                    <th class="p-2.5">{{ t('Columna') }}</th>
+                    <th class="p-2.5">{{ t('Tipo') }}</th>
+                    <th class="p-2.5">{{ t('Clave / Relación') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/[0.04]">
@@ -176,7 +176,7 @@
                     </td>
                     <td class="p-2.5 text-[11px]">
                       <span v-if="isColPk(tbl, col.name)" class="text-amber-400 font-semibold uppercase text-[10px]">
-                        PK (Clave Primaria)
+                        {{ t('PK (Clave Primaria)') }}
                       </span>
                       <span v-else-if="getColFk(tbl, col.name)" class="text-sky-300">
                         FK ➔ <strong>{{ getColFk(tbl, col.name)?.referencedTable }}</strong>.{{ getColFk(tbl, col.name)?.referencedColumn }}
@@ -190,7 +190,7 @@
 
             <!-- FK Summary pill list if any -->
             <div v-if="tbl.foreignKeys.length > 0" class="pt-1 flex flex-wrap items-center gap-2">
-              <span class="text-[10px] text-slate-500 uppercase font-semibold">Relaciones detectadas:</span>
+              <span class="text-[10px] text-slate-500 uppercase font-semibold">{{ t('Relaciones detectadas:') }}</span>
               <span
                 v-for="(fk, fki) in tbl.foreignKeys"
                 :key="fki"
@@ -210,7 +210,7 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-                Documento Markdown Generado
+                {{ t('Documento Markdown Generado') }}
               </span>
             </div>
             <div class="flex items-center gap-2">
@@ -220,14 +220,14 @@
               >
                 <Check v-if="mdCopied" class="w-3.5 h-3.5 text-emerald-400" />
                 <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
-                <span>{{ mdCopied ? '¡Copiado!' : 'Copiar Markdown' }}</span>
+                <span>{{ mdCopied ? t('¡Copiado!') : t('Copiar Markdown') }}</span>
               </button>
               <button
                 @click="exportMarkdownDoc"
                 class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
               >
                 <Download class="w-3.5 h-3.5 text-slate-400" />
-                <span>Guardar .md</span>
+                <span>{{ t('Guardar .md') }}</span>
               </button>
             </div>
           </div>
@@ -240,7 +240,7 @@
     <!-- Empty State -->
     <div v-else class="p-12 text-center bg-slate-900/30 rounded-xl border border-dashed border-white/[0.08] space-y-2">
       <BookOpen class="w-8 h-8 text-slate-600 mx-auto" />
-      <p class="text-xs text-slate-400">Selecciona una base de datos y haz clic en "Generar Diccionario".</p>
+      <p class="text-xs text-slate-400">{{ t('Selecciona una base de datos y haz clic en "Generar Diccionario".') }}</p>
     </div>
   </div>
 </template>
@@ -261,6 +261,7 @@ import {
   ExternalLink
 } from 'lucide-vue-next';
 import SearchableSelect from './SearchableSelect.vue';
+import { t } from '../i18n';
 import {
   fetchDatabases,
   fetchCurrentConnection,
@@ -322,36 +323,36 @@ const markdownDoc = computed(() => {
   if (tablesData.value.length === 0) return '';
   const dateStr = new Date().toISOString().slice(0, 10);
   const lines: string[] = [
-    `# 📖 Diccionario de Datos: \`${selectedDb.value}\``,
+    t('# 📖 Diccionario de Datos: `{db}`', { db: selectedDb.value }),
     ``,
-    `> Generado automáticamente el **${dateStr}** mediante **DB Manager Pro para Beekeeper Studio**.`,
+    t('> Generado automáticamente el **{date}** mediante **DB Manager Pro para Beekeeper Studio**.', { date: dateStr }),
     ``,
-    `### 📊 Resumen Ejecutivo`,
-    `- **Base de Datos:** \`${selectedDb.value}\``,
-    `- **Total de Tablas:** ${tablesData.value.length}`,
-    `- **Total de Columnas:** ${totalColumnsCount.value}`,
-    `- **Total de Relaciones (FKs):** ${totalFkCount.value}`,
+    t('### 📊 Resumen Ejecutivo'),
+    t('- **Base de Datos:** `{db}`', { db: selectedDb.value }),
+    t('- **Total de Tablas:** {count}', { count: tablesData.value.length }),
+    t('- **Total de Columnas:** {count}', { count: totalColumnsCount.value }),
+    t('- **Total de Relaciones (FKs):** {count}', { count: totalFkCount.value }),
     ``,
     `---`,
     ``,
-    `## 📑 Catálogo Detallado de Tablas`,
+    t('## 📑 Catálogo Detallado de Tablas'),
     ``
   ];
 
   for (const tbl of tablesData.value) {
-    lines.push(`### Tabla \`${tbl.name}\``);
+    lines.push(t('### Tabla `{name}`', { name: tbl.name }));
     if (tbl.rowCount !== undefined) {
-      lines.push(`*Registros estimados: ${tbl.rowCount} filas*`);
+      lines.push(t('*Registros estimados: {count} filas*', { count: tbl.rowCount }));
     }
     lines.push(``);
-    lines.push(`| Columna | Tipo | Clave / Relación |`);
+    lines.push(t('| Columna | Tipo | Clave / Relación |'));
     lines.push(`| :--- | :--- | :--- |`);
 
     for (const col of tbl.columns) {
       const pk = isColPk(tbl, col.name);
       const fk = getColFk(tbl, col.name);
       let note = '-';
-      if (pk) note = '**PK (Primary Key)**';
+      if (pk) note = t('**PK (Primary Key)**');
       else if (fk) note = `FK ➔ \`${fk.referencedTable}.${fk.referencedColumn}\``;
 
       lines.push(`| \`${col.name}\` | \`${col.type || 'varchar'}\` | ${note} |`);
@@ -373,7 +374,7 @@ async function onDbChange() {
 async function loadDictionary() {
   if (!selectedDb.value) return;
   loading.value = true;
-  progressMessage.value = 'Obteniendo lista de tablas...';
+  progressMessage.value = t('Obteniendo lista de tablas...');
   tablesData.value = [];
 
   try {
@@ -384,7 +385,7 @@ async function loadDictionary() {
     const results: TableDocData[] = [];
     for (let i = 0; i < names.length; i++) {
       const name = names[i];
-      progressMessage.value = `Inspeccionando tabla ${i + 1}/${names.length}: ${name}`;
+      progressMessage.value = t('Inspeccionando tabla {current}/{total}: {name}', { current: i + 1, total: names.length, name });
 
       const [cols, fks, count] = await Promise.all([
         fetchColumns(name, selectedDb.value),
@@ -402,9 +403,9 @@ async function loadDictionary() {
     }
 
     tablesData.value = results;
-    showNotification(`✔ Diccionario de datos generado para ${results.length} tablas.`, 'success');
+    showNotification(t('✔ Diccionario de datos generado para {count} tablas.', { count: results.length }), 'success');
   } catch (err: any) {
-    showNotification(`Error al generar diccionario: ${err.message}`, 'error');
+    showNotification(t('Error al generar diccionario: {message}', { message: err.message }), 'error');
   } finally {
     loading.value = false;
     progressMessage.value = '';
@@ -430,7 +431,7 @@ async function exportMarkdownDoc() {
     { name: 'Markdown Document (*.md)', extensions: ['md'] }
   ]);
   if (saved) {
-    showNotification(`Documento ${fileName} exportado con éxito.`, 'success');
+    showNotification(t('Documento {file} exportado con éxito.', { file: fileName }), 'success');
   }
 }
 
@@ -439,8 +440,8 @@ async function openTableNative(tableName: string, schema?: string) {
   await openTableInBeekeeper(tableName, schema, selectedDb.value, (msg) =>
     showNotification(
       /Table not found/i.test(msg)
-        ? `Selecciona la base "${selectedDb.value}" en Beekeeper para abrir la tabla "${tableName}".`
-        : `No se pudo abrir la tabla en Beekeeper: ${msg}`,
+        ? t('Selecciona la base "{db}" en Beekeeper para abrir la tabla "{table}".', { db: selectedDb.value, table: tableName })
+        : t('No se pudo abrir la tabla en Beekeeper: {message}', { message: msg }),
       'error'
     )
   );

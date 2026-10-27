@@ -4,10 +4,10 @@
     <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] shadow-sm">
       <div class="flex items-center gap-2">
         <Sparkles class="w-5 h-5 text-sky-400" />
-        <h2 class="text-base font-semibold text-white">Generador Inteligente de Datos (Mock Data)</h2>
+        <h2 class="text-base font-semibold text-white">{{ t('Generador Inteligente de Datos (Mock Data)') }}</h2>
       </div>
       <p class="text-xs text-slate-400 mt-1">
-        Puebla cualquier tabla con datos de prueba realistas mediante Faker, infiriendo nombres, correos, teléfonos, fechas y montos automáticamente.
+        {{ t('Puebla cualquier tabla con datos de prueba realistas mediante Faker, infiriendo nombres, correos, teléfonos, fechas y montos automáticamente.') }}
       </p>
     </div>
 
@@ -16,25 +16,25 @@
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-medium text-slate-400">Base de Datos</label>
+            <label class="block text-xs font-medium text-slate-400">{{ t('Base de Datos') }}</label>
             <span v-if="databases.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono">
-              {{ databases.length }} BDs
+              {{ t('{count} BDs', { count: databases.length }) }}
             </span>
           </div>
           <SearchableSelect
             v-model="selectedDb"
             :options="databases"
             :allow-custom="false"
-            placeholder="Escribe o busca BD..."
+            :placeholder="t('Escribe o busca BD...')"
             @change="onDbChange"
           />
         </div>
 
         <div class="md:col-span-2">
           <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-medium text-slate-400">Tabla</label>
+            <label class="block text-xs font-medium text-slate-400">{{ t('Tabla') }}</label>
             <span v-if="tableNames.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono">
-              {{ tableNames.length }} tablas
+              {{ t('{count} tablas', { count: tableNames.length }) }}
             </span>
           </div>
           <div class="flex gap-2">
@@ -42,12 +42,12 @@
               v-model="selectedTable"
               :options="tableNames"
               :allow-custom="false"
-              placeholder="Escribe o busca una tabla..."
+              :placeholder="t('Escribe o busca una tabla...')"
               @change="onTableSelect"
             />
             <button
               @click="loadTables"
-              title="Recargar tablas"
+              :title="t('Recargar tablas')"
               type="button"
               class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs border border-white/[0.08] transition cursor-pointer flex items-center justify-center shrink-0"
             >
@@ -57,7 +57,7 @@
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">Filas a Generar</label>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">{{ t('Filas a Generar') }}</label>
           <input
             v-model.number="rowCount"
             type="number"
@@ -74,7 +74,7 @@
         <div class="flex items-center gap-2">
           <Info class="w-4 h-4 text-sky-400 shrink-0" />
           <span>
-            Poblando tabla padre <strong>{{ selectedTable }}</strong> para satisfacer las claves foráneas de <strong>{{ previousTable }}</strong>.
+            {{ t('Poblando tabla padre') }} <strong>{{ selectedTable }}</strong> {{ t('para satisfacer las claves foráneas de') }} <strong>{{ previousTable }}</strong>.
           </span>
         </div>
         <button
@@ -83,7 +83,7 @@
           class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-[var(--bks-on-accent)] rounded text-xs font-medium transition cursor-pointer flex items-center gap-1.5 shadow-sm"
         >
           <ArrowLeft class="w-3.5 h-3.5" />
-          <span>Volver a {{ previousTable }}</span>
+          <span>{{ t('Volver a {table}', { table: previousTable }) }}</span>
         </button>
       </div>
 
@@ -92,7 +92,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2 font-medium text-xs text-amber-300">
             <AlertTriangle class="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Tablas relacionadas vacías detectadas ({{ emptyFkTables.length }})</span>
+            <span>{{ t('Tablas relacionadas vacías detectadas ({count})', { count: emptyFkTables.length }) }}</span>
           </div>
           <button
             type="button"
@@ -101,11 +101,11 @@
             class="px-3 py-1.5 bg-[var(--bks-warning-solid)] hover:bg-[var(--bks-warning-solid-hover)] text-[var(--bks-on-warning)] font-semibold rounded text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50 active:scale-[0.98]"
           >
             <Sparkles class="w-3.5 h-3.5" :class="seedingCascade ? 'animate-spin' : ''" />
-            <span>{{ seedingCascade ? 'Poblando en Cascada...' : 'Poblar Todo en Cascada (DAG)' }}</span>
+            <span>{{ seedingCascade ? t('Poblando en Cascada...') : t('Poblar Todo en Cascada (DAG)') }}</span>
           </button>
         </div>
         <p class="text-[11px] text-slate-300 leading-relaxed">
-          Esta tabla depende de claves foráneas hacia tablas vacías. Puedes usar <strong>Poblar Todo en Cascada</strong> para generar e insertar filas padre automáticamente y sincronizar las claves foráneas, o poblarlas individualmente:
+          {{ t('Esta tabla depende de claves foráneas hacia tablas vacías. Puedes usar') }} <strong>{{ t('Poblar Todo en Cascada') }}</strong> {{ t('para generar e insertar filas padre automáticamente y sincronizar las claves foráneas, o poblarlas individualmente:') }}
         </p>
         <div class="flex flex-wrap gap-2 pt-1">
           <button
@@ -114,12 +114,12 @@
             type="button"
             @click="switchToTable(tbl)"
             :disabled="isInNavigationPath(tbl)"
-            :title="isInNavigationPath(tbl) ? `Dependencia circular: '${tbl}' ya está en la ruta de navegación actual. Complétala manualmente cambiando de tabla.` : ''"
+            :title="isInNavigationPath(tbl) ? t('Dependencia circular: \'{table}\' ya está en la ruta de navegación actual. Complétala manualmente cambiando de tabla.', { table: tbl }) : ''"
             class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 rounded text-xs font-mono flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/20"
           >
             <ArrowRight class="w-3.5 h-3.5" />
-            <span>Poblar "{{ tbl }}"</span>
-            <span v-if="isInNavigationPath(tbl)" class="text-[9px] uppercase font-bold">(ciclo)</span>
+            <span>{{ t('Poblar "{table}"', { table: tbl }) }}</span>
+            <span v-if="isInNavigationPath(tbl)" class="text-[9px] uppercase font-bold">{{ t('(ciclo)') }}</span>
           </button>
         </div>
       </div>
@@ -128,10 +128,10 @@
       <div v-if="columnConfigs.length > 0" class="space-y-2.5 pt-3 border-t border-white/[0.06]">
         <div class="flex items-center justify-between">
           <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-300">
-            Columnas detectadas ({{ columnConfigs.length }}) y generador inferido:
+            {{ t('Columnas detectadas ({count}) y generador inferido:', { count: columnConfigs.length }) }}
           </h4>
           <span class="text-[11px] text-slate-400 hidden sm:inline">
-            Puedes cambiar el generador o la tabla origen para cada campo
+            {{ t('Puedes cambiar el generador o la tabla origen para cada campo') }}
           </span>
         </div>
 
@@ -147,7 +147,7 @@
               <div class="min-w-0">
                 <div class="font-mono font-medium text-white flex items-center gap-1.5 truncate">
                   <Key v-if="col.isPrimary" class="w-3.5 h-3.5 text-amber-400 shrink-0" title="Primary Key / ID" />
-                  <Link2 v-else-if="col.generator === 'foreign_key'" class="w-3.5 h-3.5 text-sky-400 shrink-0" title="Clave Foránea" />
+                  <Link2 v-else-if="col.generator === 'foreign_key'" class="w-3.5 h-3.5 text-sky-400 shrink-0" :title="t('Clave Foránea')" />
                   <span class="truncate">{{ col.name }}</span>
                 </div>
                 <div class="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{{ col.type }}</div>
@@ -159,14 +159,14 @@
                 @change="onGeneratorChange(col)"
                 class="bg-slate-900 border border-white/[0.15] rounded px-2 py-1 text-[11px] text-sky-300 font-mono focus:outline-none focus:border-sky-500 shrink-0 cursor-pointer max-w-[130px]"
               >
-                <optgroup label="Identificadores">
-                  <option value="id_sequence">ID Secuencial</option>
-                  <option value="foreign_key">Clave Foránea (FK)</option>
-                  <option value="db_auto">Auto (BD / Omitir)</option>
-                  <option value="faker.uuidv7">UUID (v7 - Temporal)</option>
-                  <option value="faker.uuid">UUID (v4 - Aleatorio)</option>
+                <optgroup :label="t('Identificadores')">
+                  <option value="id_sequence">{{ t('ID Secuencial') }}</option>
+                  <option value="foreign_key">{{ t('Clave Foránea (FK)') }}</option>
+                  <option value="db_auto">{{ t('Auto (BD / Omitir)') }}</option>
+                  <option value="faker.uuidv7">{{ t('UUID (v7 - Temporal)') }}</option>
+                  <option value="faker.uuid">{{ t('UUID (v4 - Aleatorio)') }}</option>
                 </optgroup>
-                <optgroup label="Texto / Personas">
+                <optgroup :label="t('Texto / Personas')">
                   <option value="faker.fullName">faker.fullName</option>
                   <option value="faker.firstName">faker.firstName</option>
                   <option value="faker.lastName">faker.lastName</option>
@@ -176,12 +176,12 @@
                   <option value="faker.text">faker.text</option>
                   <option value="faker.words">faker.words</option>
                 </optgroup>
-                <optgroup label="Ubicación">
+                <optgroup :label="t('Ubicación')">
                   <option value="faker.address">faker.address</option>
                   <option value="faker.city">faker.city</option>
                   <option value="faker.country">faker.country</option>
                 </optgroup>
-                <optgroup label="Números / Fechas">
+                <optgroup :label="t('Números / Fechas')">
                   <option value="faker.int">faker.int</option>
                   <option value="faker.decimal">faker.decimal</option>
                   <option value="faker.price">faker.price</option>
@@ -196,14 +196,14 @@
               <div class="flex items-center justify-between text-[11px]">
                 <label class="text-slate-400 font-medium flex items-center gap-1">
                   <Link2 class="w-3 h-3 text-sky-400" />
-                  <span>Tabla origen:</span>
+                  <span>{{ t('Tabla origen:') }}</span>
                 </label>
-                <span v-if="col.fkLoading" class="text-[10px] text-slate-500 animate-pulse font-mono">Verificando...</span>
+                <span v-if="col.fkLoading" class="text-[10px] text-slate-500 animate-pulse font-mono">{{ t('Verificando...') }}</span>
                 <span v-else-if="col.fkEmpty" class="text-[10px] text-amber-400 font-mono font-medium">
-                  ⚠️ 0 filas
+                  {{ t('⚠️ 0 filas') }}
                 </span>
                 <span v-else-if="col.fkRowCount !== undefined" class="text-[10px] text-emerald-400 font-mono">
-                  ✓ {{ col.fkRowCount }} filas
+                  {{ t('✓ {count} filas', { count: col.fkRowCount }) }}
                 </span>
               </div>
 
@@ -212,7 +212,7 @@
                 @change="onFkTableChange(col)"
                 class="w-full bg-slate-900 border border-white/[0.1] rounded px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500 cursor-pointer"
               >
-                <option value="" disabled>Selecciona tabla origen...</option>
+                <option value="" disabled>{{ t('Selecciona tabla origen...') }}</option>
                 <option v-for="tbl in tableNames" :key="tbl" :value="tbl">
                   {{ tbl }}
                 </option>
@@ -220,16 +220,16 @@
 
               <div v-if="col.fkEmpty && col.fkTable" class="flex items-center justify-between pt-0.5">
                 <span class="text-[10px] text-amber-300 truncate">
-                  {{ isInNavigationPath(col.fkTable) ? 'Dependencia circular' : 'Tabla sin registros' }}
+                  {{ isInNavigationPath(col.fkTable) ? t('Dependencia circular') : t('Tabla sin registros') }}
                 </span>
                 <button
                   type="button"
                   @click="switchToTable(col.fkTable)"
                   :disabled="isInNavigationPath(col.fkTable)"
-                  :title="isInNavigationPath(col.fkTable) ? `'${col.fkTable}' ya está en la ruta de navegación actual. Complétala manualmente cambiando de tabla.` : ''"
+                  :title="isInNavigationPath(col.fkTable) ? t('\'{table}\' ya está en la ruta de navegación actual. Complétala manualmente cambiando de tabla.', { table: col.fkTable }) : ''"
                   class="text-[10px] px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 rounded transition cursor-pointer font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-amber-500/20"
                 >
-                  <span>Poblar</span>
+                  <span>{{ t('Poblar') }}</span>
                   <ArrowRight class="w-2.5 h-2.5" />
                 </button>
               </div>
@@ -237,12 +237,12 @@
 
             <!-- Note if generator is id_sequence -->
             <div v-else-if="col.generator === 'id_sequence'" class="pt-1 text-[10px] text-slate-500 font-mono">
-              Secuencia autoincremental (inicia en #{{ (maxTableId > 0 ? maxTableId + 1 : 1) }})
+              {{ t('Secuencia autoincremental (inicia en #{start})', { start: (maxTableId > 0 ? maxTableId + 1 : 1) }) }}
             </div>
 
             <!-- Note if generator is db_auto -->
             <div v-else-if="col.generator === 'db_auto'" class="pt-1 text-[10px] text-slate-500 font-mono">
-              Auto (se omite del INSERT)
+              {{ t('Auto (se omite del INSERT)') }}
             </div>
           </div>
         </div>
@@ -255,7 +255,7 @@
           class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
         >
           <Eye class="w-4 h-4" />
-          <span>{{ generating ? 'Generando...' : `Previsualizar ${rowCount} Filas` }}</span>
+          <span>{{ generating ? t('Generando...') : t('Previsualizar {count} Filas', { count: rowCount }) }}</span>
         </button>
 
         <template v-if="mockRows.length > 0">
@@ -265,31 +265,31 @@
             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
           >
             <Database class="w-4 h-4" />
-            <span>{{ inserting ? 'Insertando...' : 'Insertar en Base de Datos' }}</span>
+            <span>{{ inserting ? t('Insertando...') : t('Insertar en Base de Datos') }}</span>
           </button>
 
           <button
             @click="openSqlInEditor"
             class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
-            title="Abrir INSERT SQL en una nueva pestaña del editor de Beekeeper Studio"
+            :title="t('Abrir INSERT SQL en una nueva pestaña del editor de Beekeeper Studio')"
           >
             <ExternalLink class="w-3.5 h-3.5 text-sky-400" />
-            <span>Abrir SQL en Editor</span>
+            <span>{{ t('Abrir SQL en Editor') }}</span>
           </button>
 
           <button
             @click="exportAsSql"
             class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            title="Exportar archivo .sql con sentencias INSERT"
+            :title="t('Exportar archivo .sql con sentencias INSERT')"
           >
             <Download class="w-3.5 h-3.5 text-slate-400" />
-            <span>Exportar .sql</span>
+            <span>{{ t('Exportar .sql') }}</span>
           </button>
 
           <button
             @click="exportAsCsv"
             class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            title="Exportar a archivo CSV"
+            :title="t('Exportar a archivo CSV')"
           >
             <Download class="w-3.5 h-3.5 text-slate-400" />
             <span>CSV</span>
@@ -298,7 +298,7 @@
           <button
             @click="exportAsJson"
             class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-            title="Exportar a archivo JSON"
+            :title="t('Exportar a archivo JSON')"
           >
             <Download class="w-3.5 h-3.5 text-slate-400" />
             <span>JSON</span>
@@ -311,11 +311,11 @@
     <div v-if="mockRows.length > 0" class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-3 shadow-sm">
       <div class="flex items-center justify-between">
         <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-          Previsualización ({{ mockRows.length }} filas generadas)
+          {{ t('Previsualización ({count} filas generadas)', { count: mockRows.length }) }}
         </h3>
         <div class="flex items-center gap-3">
           <span class="text-xs text-emerald-400 font-medium flex items-center gap-1.5" v-if="insertSuccess">
-            <CheckCircle2 class="w-3.5 h-3.5" /> ¡Insertadas con éxito!
+            <CheckCircle2 class="w-3.5 h-3.5" /> {{ t('¡Insertadas con éxito!') }}
           </span>
           <button
             v-if="insertSuccess && previousTable"
@@ -324,7 +324,7 @@
             class="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-[var(--bks-on-accent)] rounded text-xs font-medium transition cursor-pointer flex items-center gap-1"
           >
             <ArrowLeft class="w-3 h-3" />
-            <span>Volver a {{ previousTable }}</span>
+            <span>{{ t('Volver a {table}', { table: previousTable }) }}</span>
           </button>
         </div>
       </div>
@@ -370,6 +370,7 @@ import {
 } from 'lucide-vue-next';
 import { faker } from '@faker-js/faker';
 import SearchableSelect from './SearchableSelect.vue';
+import { t } from '../i18n';
 import {
   fetchTables,
   fetchTablesForDatabase,
@@ -527,8 +528,8 @@ async function onTableSelect() {
   const configs: ColumnConfig[] = [];
   for (const col of rawCols) {
     const n = col.name.toLowerCase();
-    const t = col.type.toLowerCase();
-    const isPrimary = n === 'id' || t.includes('primary');
+    const colType = col.type.toLowerCase();
+    const isPrimary = n === 'id' || colType.includes('primary');
 
     let generator = '';
     let fkTable = '';
@@ -546,12 +547,12 @@ async function onTableSelect() {
         fkTable = matched;
       }
     } else if (n === 'id') {
-      if (t.includes('char') || t.includes('uuid') || t.includes('text')) {
+      if (colType.includes('char') || colType.includes('uuid') || colType.includes('text')) {
         generator = 'faker.uuidv7';
       } else {
         generator = 'id_sequence';
       }
-    } else if (t.includes('auto_increment')) {
+    } else if (colType.includes('auto_increment')) {
       generator = 'db_auto';
     } else {
       generator = inferDefaultGenerator(col.name, col.type);
@@ -636,7 +637,7 @@ async function switchToTable(tableName: string) {
   // guard here too in case switchToTable is ever called some other way.
   if (previousTables.value.includes(tableName)) {
     showNotification(
-      `No se puede navegar a "${tableName}": ya está en la ruta de navegación actual (dependencia circular). Complétala manualmente cambiando de tabla.`,
+      t('No se puede navegar a "{table}": ya está en la ruta de navegación actual (dependencia circular). Complétala manualmente cambiando de tabla.', { table: tableName }),
       'warning'
     );
     return;
@@ -644,7 +645,7 @@ async function switchToTable(tableName: string) {
   previousTables.value.push(selectedTable.value);
   selectedTable.value = tableName;
   await onTableSelect();
-  showNotification(`Cambiado a tabla "${tableName}". Genera e inserta datos aquí para satisfacer la relación.`, 'info');
+  showNotification(t('Cambiado a tabla "{table}". Genera e inserta datos aquí para satisfacer la relación.', { table: tableName }), 'info');
 }
 
 async function returnToPreviousTable() {
@@ -652,12 +653,12 @@ async function returnToPreviousTable() {
   if (!target) return;
   selectedTable.value = target;
   await onTableSelect();
-  showNotification(`Regresaste a "${target}". Las claves foráneas ahora reflejan los nuevos datos.`, 'info');
+  showNotification(t('Regresaste a "{table}". Las claves foráneas ahora reflejan los nuevos datos.', { table: target }), 'info');
 }
 
 function inferDefaultGenerator(name: string, type: string): string {
   const n = name.toLowerCase();
-  const t = type.toLowerCase();
+  const colType = type.toLowerCase();
 
   if (n.includes('email') || n.includes('correo')) return 'faker.email';
   if (n.includes('first_name') || n.includes('nombre')) return 'faker.firstName';
@@ -668,7 +669,7 @@ function inferDefaultGenerator(name: string, type: string): string {
   if (n.includes('city') || n.includes('ciudad')) return 'faker.city';
   if (n.includes('country') || n.includes('pais')) return 'faker.country';
   if (n.includes('company') || n.includes('empresa')) return 'faker.company';
-  if (n.includes('uuid') || t.includes('uuid')) return 'faker.uuidv7';
+  if (n.includes('uuid') || colType.includes('uuid')) return 'faker.uuidv7';
   if (
     n.includes('price') ||
     n.includes('amount') ||
@@ -682,18 +683,18 @@ function inferDefaultGenerator(name: string, type: string): string {
     return 'faker.price';
   }
   if (n.includes('cantidad') || n.includes('qty') || n.includes('quantity') || n.includes('stock') || n.includes('cant')) {
-    if (t.includes('double') || t.includes('float') || t.includes('decimal') || t.includes('numeric')) {
+    if (colType.includes('double') || colType.includes('float') || colType.includes('decimal') || colType.includes('numeric')) {
       return 'faker.decimal';
     }
     return 'faker.int';
   }
-  if (t.includes('decimal') || t.includes('double') || t.includes('float') || t.includes('numeric') || t.includes('real')) {
+  if (colType.includes('decimal') || colType.includes('double') || colType.includes('float') || colType.includes('numeric') || colType.includes('real')) {
     return 'faker.decimal';
   }
-  if (t.includes('int')) return 'faker.int';
-  if (t.includes('date') || t.includes('time') || t.includes('timestamp')) return 'faker.date';
-  if (t.includes('bool') || t.includes('tinyint(1)')) return 'faker.boolean';
-  if (t.includes('text')) return 'faker.text';
+  if (colType.includes('int')) return 'faker.int';
+  if (colType.includes('date') || colType.includes('time') || colType.includes('timestamp')) return 'faker.date';
+  if (colType.includes('bool') || colType.includes('tinyint(1)')) return 'faker.boolean';
+  if (colType.includes('text')) return 'faker.text';
   return 'faker.words';
 }
 
@@ -772,8 +773,8 @@ async function seedCascadeGraph() {
   if (emptyFkTables.value.length === 0) return;
 
   const confirmed = await confirmAction(
-    `¿Deseas poblar automáticamente ${emptyFkTables.value.length} tabla(s) relacionada(s) (${emptyFkTables.value.join(', ')}) con filas de prueba para resolver las dependencias foráneas?`,
-    'Poblar Tablas en Cascada'
+    t('¿Deseas poblar automáticamente {count} tabla(s) relacionada(s) ({tables}) con filas de prueba para resolver las dependencias foráneas?', { count: emptyFkTables.value.length, tables: emptyFkTables.value.join(', ') }),
+    t('Poblar Tablas en Cascada')
   );
   if (!confirmed) return;
 
@@ -790,11 +791,11 @@ async function seedCascadeGraph() {
       const parentCount = 5;
       const parentCfgs: ColumnConfig[] = parentCols.map((c) => {
         const n = c.name.toLowerCase();
-        const t = c.type.toLowerCase();
-        const isPrimary = n === 'id' || t.includes('primary');
+        const colType = c.type.toLowerCase();
+        const isPrimary = n === 'id' || colType.includes('primary');
         let gen = '';
         if (n === 'id') gen = 'id_sequence';
-        else if (t.includes('auto_increment')) gen = 'db_auto';
+        else if (colType.includes('auto_increment')) gen = 'db_auto';
         else gen = inferDefaultGenerator(c.name, c.type);
 
         return {
@@ -852,12 +853,12 @@ async function seedCascadeGraph() {
     generateMockRows();
 
     showNotification(
-      `Se poblaron ${seededCount} tabla(s) padre en cascada con éxito. Claves foráneas sincronizadas.`,
+      t('Se poblaron {count} tabla(s) padre en cascada con éxito. Claves foráneas sincronizadas.', { count: seededCount }),
       'success'
     );
   } catch (err: any) {
     console.error('Error seeding cascade:', err);
-    showNotification(err.message || 'Error al poblar en cascada', 'error');
+    showNotification(err.message || t('Error al poblar en cascada'), 'error');
   } finally {
     seedingCascade.value = false;
   }
@@ -868,7 +869,7 @@ async function insertIntoDatabase() {
 
   const colsToInsert = Object.keys(mockRows.value[0]);
   if (colsToInsert.length === 0) {
-    showNotification('No hay columnas con datos para insertar.', 'warning');
+    showNotification(t('No hay columnas con datos para insertar.'), 'warning');
     return;
   }
 
@@ -877,13 +878,13 @@ async function insertIntoDatabase() {
     (selectedDb.value && !isSafeIdentifier(selectedDb.value)) ||
     !colsToInsert.every((c) => isSafeIdentifier(c))
   ) {
-    showNotification('Nombre de base de datos, tabla o columna inválido (contiene comillas o caracteres no permitidos).', 'error');
+    showNotification(t('Nombre de base de datos, tabla o columna inválido (contiene comillas o caracteres no permitidos).'), 'error');
     return;
   }
 
   const confirmed = await confirmAction(
-    `¿Deseas insertar ${mockRows.value.length} filas simuladas en la tabla "${selectedTable.value}"?`,
-    'Confirmar Inserción de Mock Data'
+    t('¿Deseas insertar {count} filas simuladas en la tabla "{table}"?', { count: mockRows.value.length, table: selectedTable.value }),
+    t('Confirmar Inserción de Mock Data')
   );
   if (!confirmed) return;
 
@@ -921,9 +922,9 @@ async function insertIntoDatabase() {
 
     maxTableId.value += mockRows.value.length;
     insertSuccess.value = true;
-    showNotification(`✔ Se insertaron ${mockRows.value.length} filas en ${selectedTable.value} con éxito.`, 'success');
+    showNotification(t('✔ Se insertaron {count} filas en {table} con éxito.', { count: mockRows.value.length, table: selectedTable.value }), 'success');
   } catch (err: any) {
-    showNotification(`Error al insertar: ${err.message}`, 'error');
+    showNotification(t('Error al insertar: {message}', { message: err.message }), 'error');
   } finally {
     inserting.value = false;
   }
@@ -955,9 +956,9 @@ async function openSqlInEditor() {
   if (!sql) return;
   const opened = await openQueryInBeekeeper(sql);
   if (opened) {
-    showNotification('Script de inserción abierto en el editor de Beekeeper Studio.', 'success');
+    showNotification(t('Script de inserción abierto en el editor de Beekeeper Studio.'), 'success');
   } else {
-    showNotification('No se pudo abrir el editor nativo de Beekeeper.', 'warning');
+    showNotification(t('No se pudo abrir el editor nativo de Beekeeper.'), 'warning');
   }
 }
 
@@ -967,7 +968,7 @@ async function exportAsSql() {
   const fileName = `seed_${selectedTable.value}_${mockRows.value.length}rows.sql`;
   const saved = await exportToFile(sql, fileName, [{ name: 'SQL Script (*.sql)', extensions: ['sql'] }]);
   if (saved) {
-    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
+    showNotification(t('Archivo {file} exportado correctamente.', { file: fileName }), 'success');
   }
 }
 
@@ -987,7 +988,7 @@ async function exportAsCsv() {
   const fileName = `mock_${selectedTable.value}_${mockRows.value.length}rows.csv`;
   const saved = await exportToFile(csv, fileName, [{ name: 'CSV File (*.csv)', extensions: ['csv'] }]);
   if (saved) {
-    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
+    showNotification(t('Archivo {file} exportado correctamente.', { file: fileName }), 'success');
   }
 }
 
@@ -997,7 +998,7 @@ async function exportAsJson() {
   const fileName = `mock_${selectedTable.value}_${mockRows.value.length}rows.json`;
   const saved = await exportToFile(json, fileName, [{ name: 'JSON File (*.json)', extensions: ['json'] }]);
   if (saved) {
-    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
+    showNotification(t('Archivo {file} exportado correctamente.', { file: fileName }), 'success');
   }
 }
 

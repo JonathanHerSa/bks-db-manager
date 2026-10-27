@@ -5,7 +5,7 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <Activity class="w-5 h-5 text-emerald-400" />
-          <h2 class="text-base font-semibold text-white">Auditor de Salud & Rendimiento</h2>
+          <h2 class="text-base font-semibold text-white">{{ t('Auditor de Salud & Rendimiento') }}</h2>
         </div>
         <div class="inline-flex rounded-lg bg-slate-950 p-0.5 border border-white/[0.08]">
           <button
@@ -15,7 +15,7 @@
             :class="activeSubTab === 'health' ? 'bg-emerald-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           >
             <HeartPulse class="w-3.5 h-3.5" />
-            <span>Diagnóstico & Salud</span>
+            <span>{{ t('Diagnóstico & Salud') }}</span>
           </button>
           <button
             type="button"
@@ -24,7 +24,7 @@
             :class="activeSubTab === 'processlist' ? 'bg-sky-600 text-[var(--bks-on-accent)] shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           >
             <Cpu class="w-3.5 h-3.5" />
-            <span>Monitor de Procesos</span>
+            <span>{{ t('Monitor de Procesos') }}</span>
             <span v-if="processes.length > 0" class="px-1.5 py-0.2 rounded-full bg-sky-400/20 text-sky-300 text-[10px]">
               {{ processes.length }}
             </span>
@@ -32,7 +32,7 @@
         </div>
       </div>
       <p class="text-xs text-slate-400 mt-1">
-        Inspecciona cuellos de botella: detecta tablas sin Primary Key, índices redundantes o duplicados que ralentizan escrituras, desglose de almacenamiento y monitor de procesos activos con terminación segura de consultas.
+        {{ t('Inspecciona cuellos de botella: detecta tablas sin Primary Key, índices redundantes o duplicados que ralentizan escrituras, desglose de almacenamiento y monitor de procesos activos con terminación segura de consultas.') }}
       </p>
     </div>
 
@@ -41,13 +41,13 @@
       <!-- Database & Controls Selector -->
       <div class="p-4 rounded-xl bg-slate-900/40 border border-white/[0.06] flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3 flex-1 min-w-[280px]">
-          <label class="text-xs font-medium text-slate-300 whitespace-nowrap">Base de Datos:</label>
+          <label class="text-xs font-medium text-slate-300 whitespace-nowrap">{{ t('Base de Datos:') }}</label>
           <div class="flex-1">
             <SearchableSelect
               v-model="selectedDb"
               :options="databases"
               :allow-custom="false"
-              placeholder="Selecciona o busca base de datos..."
+              :placeholder="t('Selecciona o busca base de datos...')"
             />
           </div>
         </div>
@@ -78,7 +78,7 @@
             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
           >
             <RefreshCw class="w-3.5 h-3.5" :class="loadingAudit ? 'animate-spin' : ''" />
-            <span>{{ loadingAudit ? 'Auditando...' : 'Ejecutar Diagnóstico' }}</span>
+            <span>{{ loadingAudit ? t('Auditando...') : t('Ejecutar Diagnóstico') }}</span>
           </button>
         </div>
       </div>
@@ -91,14 +91,14 @@
           <div class="p-4 rounded-xl border flex flex-col items-center justify-center text-center shadow-sm" :class="scoreCardColor">
             <div class="text-3xl font-extrabold font-mono tracking-tight">{{ healthReport.score }} / 100</div>
             <div class="text-xs font-semibold uppercase tracking-wider mt-1">{{ scoreLabel }}</div>
-            <div class="text-[11px] opacity-80 mt-0.5">Puntaje Global de Salud</div>
+            <div class="text-[11px] opacity-80 mt-0.5">{{ t('Puntaje Global de Salud') }}</div>
           </div>
 
           <!-- Total Tables -->
           <div class="p-4 rounded-xl bg-slate-900/50 border border-white/[0.08] text-center shadow-sm">
             <div class="text-2xl font-bold text-white font-mono">{{ healthReport.summary.totalTables }}</div>
-            <div class="text-xs text-slate-300 mt-1 font-medium">Tablas Analizadas</div>
-            <div class="text-[11px] text-slate-500 mt-0.5">{{ healthReport.totalSizeMb }} MB Totales</div>
+            <div class="text-xs text-slate-300 mt-1 font-medium">{{ t('Tablas Analizadas') }}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">{{ t('{mb} MB Totales', { mb: healthReport.totalSizeMb }) }}</div>
           </div>
 
           <!-- Tables without PK -->
@@ -109,9 +109,9 @@
             <div class="text-2xl font-bold font-mono" :class="healthReport.tablesWithoutPk.length > 0 ? 'text-rose-400' : 'text-emerald-400'">
               {{ healthReport.tablesWithoutPk.length }}
             </div>
-            <div class="text-xs mt-1 font-medium">Tablas Sin Primary Key</div>
+            <div class="text-xs mt-1 font-medium">{{ t('Tablas Sin Primary Key') }}</div>
             <div class="text-[11px] opacity-75 mt-0.5">
-              {{ healthReport.tablesWithoutPk.length > 0 ? 'Riesgo alto de replicación' : 'Óptimo' }}
+              {{ healthReport.tablesWithoutPk.length > 0 ? t('Riesgo alto de replicación') : t('Óptimo') }}
             </div>
           </div>
 
@@ -123,9 +123,9 @@
             <div class="text-2xl font-bold font-mono" :class="healthReport.duplicateIndexes.length > 0 ? 'text-amber-400' : 'text-emerald-400'">
               {{ healthReport.duplicateIndexes.length }}
             </div>
-            <div class="text-xs mt-1 font-medium">Índices Redundantes</div>
+            <div class="text-xs mt-1 font-medium">{{ t('Índices Redundantes') }}</div>
             <div class="text-[11px] opacity-75 mt-0.5">
-              {{ healthReport.duplicateIndexes.length > 0 ? 'Sobrecarga de escrituras' : 'Limpio' }}
+              {{ healthReport.duplicateIndexes.length > 0 ? t('Sobrecarga de escrituras') : t('Limpio') }}
             </div>
           </div>
         </div>
@@ -134,10 +134,10 @@
         <div v-if="healthReport.tablesWithoutPk.length > 0" class="p-5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-3">
           <div class="flex items-center gap-2">
             <ShieldAlert class="w-4 h-4 text-rose-400" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-300">Tablas sin Clave Primaria Detectadas</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-300">{{ t('Tablas sin Clave Primaria Detectadas') }}</h3>
           </div>
           <p class="text-xs text-rose-200/90 leading-relaxed">
-            Las tablas sin Primary Key causan escaneos de tabla completa en actualizaciones/borrados e impiden la replicación eficiente por filas (RBR) en MySQL. Se recomienda agregar una clave primaria sintética (e.g. <code>id BIGINT AUTO_INCREMENT PRIMARY KEY</code>).
+            {{ t('Las tablas sin Primary Key causan escaneos de tabla completa en actualizaciones/borrados e impiden la replicación eficiente por filas (RBR) en MySQL. Se recomienda agregar una clave primaria sintética (e.g.') }} <code>id BIGINT AUTO_INCREMENT PRIMARY KEY</code>).
           </p>
           <div class="flex flex-wrap gap-2 pt-1">
             <span
@@ -154,10 +154,10 @@
         <div v-if="healthReport.duplicateIndexes.length > 0" class="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
           <div class="flex items-center gap-2">
             <AlertTriangle class="w-4 h-4 text-amber-400" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-300">Índices Redundantes o Duplicados</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-300">{{ t('Índices Redundantes o Duplicados') }}</h3>
           </div>
           <p class="text-xs text-amber-200/90 leading-relaxed">
-            Los siguientes índices duplican columnas o son prefijos de índices existentes, consumiendo memoria RAM en búferes de InnoDB y ralentizando las operaciones <code>INSERT</code> y <code>UPDATE</code> sin aportar beneficio a las lecturas.
+            {{ t('Los siguientes índices duplican columnas o son prefijos de índices existentes, consumiendo memoria RAM en búferes de InnoDB y ralentizando las operaciones') }} <code>INSERT</code> {{ t('y') }} <code>UPDATE</code> {{ t('sin aportar beneficio a las lecturas.') }}
           </p>
           <div class="space-y-2">
             <div
@@ -181,20 +181,20 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <HardDrive class="w-4 h-4 text-sky-400" />
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">Consumo de Almacenamiento por Tabla</h3>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">{{ t('Consumo de Almacenamiento por Tabla') }}</h3>
             </div>
-            <span class="text-xs text-slate-400 font-mono">Total: {{ healthReport.totalSizeMb }} MB</span>
+            <span class="text-xs text-slate-400 font-mono">{{ t('Total: {mb} MB', { mb: healthReport.totalSizeMb }) }}</span>
           </div>
 
           <div class="overflow-x-auto rounded-lg border border-white/[0.06]">
             <table class="w-full text-left text-xs">
               <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/[0.06]">
                 <tr>
-                  <th class="px-4 py-2.5 font-medium">Tabla</th>
-                  <th class="px-4 py-2.5 font-medium text-right">Filas Aprox.</th>
-                  <th class="px-4 py-2.5 font-medium text-right">Datos (MB)</th>
-                  <th class="px-4 py-2.5 font-medium text-right">Índices (MB)</th>
-                  <th class="px-4 py-2.5 font-medium text-right">Total (MB)</th>
+                  <th class="px-4 py-2.5 font-medium">{{ t('Tabla') }}</th>
+                  <th class="px-4 py-2.5 font-medium text-right">{{ t('Filas Aprox.') }}</th>
+                  <th class="px-4 py-2.5 font-medium text-right">{{ t('Datos (MB)') }}</th>
+                  <th class="px-4 py-2.5 font-medium text-right">{{ t('Índices (MB)') }}</th>
+                  <th class="px-4 py-2.5 font-medium text-right">{{ t('Total (MB)') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/[0.04] text-slate-300 font-mono">
@@ -205,7 +205,7 @@
                 >
                   <td class="px-4 py-2 font-medium text-white flex items-center gap-2">
                     <span>{{ st.table }}</span>
-                    <span v-if="healthReport.tablesWithoutPk.includes(st.table)" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[10px]">Sin PK</span>
+                    <span v-if="healthReport.tablesWithoutPk.includes(st.table)" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[10px]">{{ t('Sin PK') }}</span>
                   </td>
                   <td class="px-4 py-2 text-right text-slate-400">{{ st.rows.toLocaleString() }}</td>
                   <td class="px-4 py-2 text-right">{{ st.dataSizeMb }} MB</td>
@@ -224,8 +224,8 @@
       <div class="flex items-center justify-between p-4 rounded-xl bg-slate-900/40 border border-white/[0.06]">
         <div class="flex items-center gap-3">
           <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-xs font-semibold text-slate-200">Consultas & Threads en Ejecución</span>
-          <span class="text-xs text-slate-400 font-mono">({{ processes.length }} activos)</span>
+          <span class="text-xs font-semibold text-slate-200">{{ t('Consultas & Threads en Ejecución') }}</span>
+          <span class="text-xs text-slate-400 font-mono">{{ t('({count} activos)', { count: processes.length }) }}</span>
         </div>
 
         <div class="flex items-center gap-2.5">
@@ -235,7 +235,7 @@
             class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
           >
             <RefreshCw class="w-3.5 h-3.5" :class="loadingProcesses ? 'animate-spin' : ''" />
-            <span>Refrescar</span>
+            <span>{{ t('Refrescar') }}</span>
           </button>
         </div>
       </div>
@@ -243,19 +243,19 @@
       <!-- Process List Table -->
       <div class="rounded-xl bg-slate-900/50 border border-white/[0.08] overflow-hidden shadow-sm">
         <div v-if="processes.length === 0" class="p-8 text-center text-xs text-slate-400">
-          No hay consultas lentas ni procesos bloqueados activos en el motor.
+          {{ t('No hay consultas lentas ni procesos bloqueados activos en el motor.') }}
         </div>
         <div v-else class="overflow-x-auto">
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/[0.06]">
               <tr>
                 <th class="px-4 py-2.5 font-medium">ID</th>
-                <th class="px-4 py-2.5 font-medium">Usuario / Host</th>
-                <th class="px-4 py-2.5 font-medium">BD</th>
-                <th class="px-4 py-2.5 font-medium">Comando / Estado</th>
-                <th class="px-4 py-2.5 font-medium text-right">Tiempo (s)</th>
-                <th class="px-4 py-2.5 font-medium">Consulta SQL</th>
-                <th class="px-4 py-2.5 font-medium text-center">Acción</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('Usuario / Host') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('BD') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('Comando / Estado') }}</th>
+                <th class="px-4 py-2.5 font-medium text-right">{{ t('Tiempo (s)') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('Consulta SQL') }}</th>
+                <th class="px-4 py-2.5 font-medium text-center">{{ t('Acción') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-white/[0.04] text-slate-300 font-mono">
@@ -287,9 +287,9 @@
                   <button
                     @click="confirmKill(p)"
                     class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-[var(--bks-on-accent)] rounded border border-rose-500/30 text-[11px] font-medium transition cursor-pointer"
-                    title="Detener consulta (KILL QUERY)"
+                    :title="t('Detener consulta (KILL QUERY)')"
                   >
-                    Detener
+                    {{ t('Detener') }}
                   </button>
                 </td>
               </tr>
@@ -307,15 +307,15 @@
       <div class="bg-slate-900 border border-white/[0.1] rounded-xl p-6 max-w-md w-full space-y-4 shadow-xl text-left">
         <div class="flex items-center gap-2 text-rose-400">
           <ShieldAlert class="w-5 h-5" />
-          <h3 class="text-base font-semibold text-white">¿Detener Consulta / Proceso?</h3>
+          <h3 class="text-base font-semibold text-white">{{ t('¿Detener Consulta / Proceso?') }}</h3>
         </div>
         <p class="text-xs text-slate-300 leading-relaxed">
-          Estás a punto de ejecutar <code>KILL QUERY {{ processToKill.id }}</code>. Esto abortará la consulta actual sin desconectar al cliente.
+          {{ t('Estás a punto de ejecutar') }} <code>KILL QUERY {{ processToKill.id }}</code>. {{ t('Esto abortará la consulta actual sin desconectar al cliente.') }}
         </p>
         <div class="p-3 bg-slate-950 rounded-lg border border-white/[0.06] text-xs font-mono text-slate-300 space-y-1">
           <div><span class="text-slate-500">ID:</span> {{ processToKill.id }}</div>
-          <div><span class="text-slate-500">Usuario:</span> {{ processToKill.user }}</div>
-          <div><span class="text-slate-500">Tiempo:</span> {{ processToKill.time }}s</div>
+          <div><span class="text-slate-500">{{ t('Usuario:') }}</span> {{ processToKill.user }}</div>
+          <div><span class="text-slate-500">{{ t('Tiempo:') }}</span> {{ processToKill.time }}s</div>
           <div class="truncate"><span class="text-slate-500">Query:</span> {{ processToKill.info || 'N/A' }}</div>
         </div>
         <div class="flex items-center justify-end gap-2.5 pt-2">
@@ -331,7 +331,7 @@
             class="px-4 py-1.5 text-xs font-medium text-[var(--bks-on-accent)] bg-rose-600 hover:bg-rose-500 disabled:opacity-50 rounded-lg transition cursor-pointer flex items-center gap-1.5"
           >
             <RefreshCw v-if="killing" class="w-3.5 h-3.5 animate-spin" />
-            <span>{{ killing ? 'Deteniendo...' : 'Confirmar y Detener' }}</span>
+            <span>{{ killing ? t('Deteniendo...') : t('Confirmar y Detener') }}</span>
           </button>
         </div>
       </div>
@@ -363,6 +363,7 @@ import {
   type ProcessItem
 } from '../services/healthAuditor';
 import SearchableSelect from './SearchableSelect.vue';
+import { t } from '../i18n';
 
 const activeSubTab = ref<'health' | 'processlist'>('health');
 const databases = ref<string[]>([]);
@@ -380,9 +381,9 @@ const killing = ref(false);
 const scoreLabel = computed(() => {
   if (!healthReport.value) return '';
   const s = healthReport.value.score;
-  if (s >= 90) return 'Excelente';
-  if (s >= 70) return 'Aceptable';
-  return 'Crítico';
+  if (s >= 90) return t('Excelente');
+  if (s >= 70) return t('Aceptable');
+  return t('Crítico');
 });
 
 const scoreCardColor = computed(() => {
@@ -399,7 +400,7 @@ async function runAudit() {
   try {
     healthReport.value = await auditHealth(selectedDb.value, dialect.value);
   } catch (err: any) {
-    showNotification(err.message || 'Error al ejecutar diagnóstico', 'error');
+    showNotification(err.message || t('Error al ejecutar diagnóstico'), 'error');
   } finally {
     loadingAudit.value = false;
   }
@@ -410,7 +411,7 @@ async function loadProcesslist() {
   try {
     processes.value = await fetchProcesslist(dialect.value);
   } catch (err: any) {
-    showNotification(err.message || 'Error al cargar lista de procesos', 'warning');
+    showNotification(err.message || t('Error al cargar lista de procesos'), 'warning');
   } finally {
     loadingProcesses.value = false;
   }
@@ -429,7 +430,7 @@ async function executeKill() {
     processToKill.value = null;
     await loadProcesslist();
   } catch (err: any) {
-    showNotification(err.message || 'Error al detener proceso', 'error');
+    showNotification(err.message || t('Error al detener proceso'), 'error');
   } finally {
     killing.value = false;
   }

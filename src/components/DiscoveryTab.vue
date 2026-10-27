@@ -5,13 +5,13 @@
       <div>
         <div class="flex items-center gap-2">
           <Container class="w-5 h-5 text-sky-400" />
-          <h2 class="text-base font-semibold text-white">Auto-Discovery Multimotor</h2>
+          <h2 class="text-base font-semibold text-white">{{ t('Auto-Discovery Multimotor') }}</h2>
           <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            Todos los motores
+            {{ t('Todos los motores') }}
           </span>
         </div>
         <p class="text-xs text-slate-400 mt-1">
-          Detección automática de SQLite (.sqlite, .db), MySQL, MariaDB, PostgreSQL, SQL Server, Redis, MongoDB, ClickHouse y contenedores Docker.
+          {{ t('Detección automática de SQLite (.sqlite, .db), MySQL, MariaDB, PostgreSQL, SQL Server, Redis, MongoDB, ClickHouse y contenedores Docker.') }}
         </p>
       </div>
 
@@ -22,7 +22,7 @@
           class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700/80 border border-white/[0.1] rounded-lg text-xs font-medium text-slate-200 flex items-center gap-2 transition cursor-pointer active:scale-[0.98]"
         >
           <RefreshCw class="w-3.5 h-3.5 text-sky-400" :class="loading ? 'animate-spin' : ''" />
-          <span>{{ loading ? 'Escaneando...' : 'Escanear Todo' }}</span>
+          <span>{{ loading ? t('Escaneando...') : t('Escanear Todo') }}</span>
         </button>
       </div>
     </div>
@@ -30,14 +30,14 @@
     <!-- Daemon Warning -->
     <CompanionOfflineBanner
       v-if="!daemonConnected"
-      reason="Docker y Auto-Discovery no pueden escanear"
+      :reason="t('Docker y Auto-Discovery no pueden escanear')"
       @retry="refreshAll"
     />
 
     <!-- Engine Filter Bar -->
     <div class="p-3 rounded-xl bg-slate-900/40 border border-white/[0.06] flex items-center gap-1.5 overflow-x-auto">
       <span class="text-xs text-slate-500 flex items-center gap-1.5 px-2 font-medium">
-        <Filter class="w-3.5 h-3.5 text-slate-400" /> Filtrar:
+        <Filter class="w-3.5 h-3.5 text-slate-400" /> {{ t('Filtrar:') }}
       </span>
       <button
         v-for="f in engineFilters"
@@ -59,14 +59,14 @@
         <div class="flex items-center gap-2">
           <Server class="w-4 h-4 text-sky-400" />
           <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-            Contenedores Docker Activos ({{ filteredDockerContainers.length }})
+            {{ t('Contenedores Docker Activos ({count})', { count: filteredDockerContainers.length }) }}
           </h3>
         </div>
         <span class="text-[11px] font-mono text-slate-500">docker ps</span>
       </div>
 
       <div v-if="filteredDockerContainers.length === 0" class="p-8 text-center text-xs text-slate-500 bg-slate-950/40 rounded-lg border border-dashed border-white/[0.08]">
-        {{ dockerContainers.length === 0 ? 'No se detectaron contenedores de bases de datos en ejecución.' : 'No hay contenedores que coincidan con el filtro seleccionado.' }}
+        {{ dockerContainers.length === 0 ? t('No se detectaron contenedores de bases de datos en ejecución.') : t('No hay contenedores que coincidan con el filtro seleccionado.') }}
       </div>
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -90,19 +90,19 @@
 
           <div class="text-[11px] text-slate-400 space-y-1 font-mono">
             <div class="flex justify-between">
-              <span class="text-slate-500">Imagen:</span>
+              <span class="text-slate-500">{{ t('Imagen:') }}</span>
               <span class="text-slate-300 truncate max-w-[200px]" :title="c.image">{{ c.image }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Puerto Host:</span>
-              <span class="text-sky-400 font-semibold">{{ c.hostPort ? `127.0.0.1:${c.hostPort}` : 'No mapeado' }}</span>
+              <span class="text-slate-500">{{ t('Puerto Host:') }}</span>
+              <span class="text-sky-400 font-semibold">{{ c.hostPort ? `127.0.0.1:${c.hostPort}` : t('No mapeado') }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Usuario Sugerido:</span>
+              <span class="text-slate-500">{{ t('Usuario Sugerido:') }}</span>
               <span class="text-slate-300">{{ c.suggestedUser }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Estado:</span>
+              <span class="text-slate-500">{{ t('Estado:') }}</span>
               <span class="text-slate-300 truncate max-w-[200px]">{{ c.status }}</span>
             </div>
           </div>
@@ -112,7 +112,7 @@
               <button
                 @click="copyDockerHost(c)"
                 class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
-                title="Copiar Host:Port"
+                :title="t('Copiar Host:Port')"
               >
                 <Copy class="w-3 h-3 text-slate-400" />
                 <span>Host:Port</span>
@@ -121,7 +121,7 @@
                 v-if="c.connUrl"
                 @click="copyDockerUrl(c)"
                 class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
-                title="Copiar Cadena de Conexión"
+                :title="t('Copiar Cadena de Conexión')"
               >
                 <Copy class="w-3 h-3 text-slate-400" />
                 <span>URL</span>
@@ -133,17 +133,17 @@
                 @click="saveDockerConnection(c)"
                 :disabled="savingId === c.id"
                 class="px-2.5 py-1 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 rounded border border-sky-500/30 text-[11px] flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
-                title="Guardar como conexión en Beekeeper Studio"
+                :title="t('Guardar como conexión en Beekeeper Studio')"
               >
                 <BookmarkPlus class="w-3 h-3 text-sky-400" />
-                <span>Guardar</span>
+                <span>{{ t('Guardar') }}</span>
               </button>
 
               <span v-if="copiedId === c.id" class="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
-                <Check class="w-3 h-3" /> Copiado
+                <Check class="w-3 h-3" /> {{ t('Copiado') }}
               </span>
               <span v-if="savedId === c.id" class="text-[11px] text-sky-400 font-medium flex items-center gap-1">
-                <Check class="w-3 h-3" /> En Beekeeper
+                <Check class="w-3 h-3" /> {{ t('En Beekeeper') }}
               </span>
             </div>
           </div>
@@ -157,11 +157,11 @@
         <div class="flex items-center gap-2">
           <FolderGit2 class="w-4 h-4 text-emerald-400" />
           <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-            Proyectos y Archivos Locales ({{ filteredProjects.length }})
+            {{ t('Proyectos y Archivos Locales ({count})', { count: filteredProjects.length }) }}
           </h3>
         </div>
         <span class="text-[11px] font-mono text-slate-400 truncate max-w-xs" :title="scanPath">
-          {{ scanPath }} (profundidad: {{ scanDepth }})
+          {{ t('{path} (profundidad: {depth})', { path: scanPath, depth: scanDepth }) }}
         </span>
       </div>
 
@@ -171,7 +171,7 @@
           <!-- Folder Path Input -->
           <div class="md:col-span-2 space-y-1.5">
             <div class="flex items-center justify-between">
-              <label class="block text-xs font-medium text-slate-400">Carpeta a Explorar</label>
+              <label class="block text-xs font-medium text-slate-400">{{ t('Carpeta a Explorar') }}</label>
               <div class="flex items-center gap-1">
                 <button
                   v-for="preset in pathPresets"
@@ -190,7 +190,7 @@
                 v-model="scanPath"
                 @keyup.enter="refreshProjects"
                 type="text"
-                placeholder="Ej: ~/Proyectos, /home/usuario/apps..."
+                :placeholder="t('Ej: ~/Proyectos, /home/usuario/apps...')"
                 class="w-full bg-slate-900 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition"
               />
             </div>
@@ -198,16 +198,16 @@
 
           <!-- Depth Selector & Scan Button -->
           <div class="space-y-1.5">
-            <label class="block text-xs font-medium text-slate-400">Profundidad</label>
+            <label class="block text-xs font-medium text-slate-400">{{ t('Profundidad') }}</label>
             <div class="flex items-center gap-2">
               <select
                 v-model.number="scanDepth"
                 class="w-full bg-slate-900 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500 cursor-pointer"
               >
-                <option :value="3">Nivel 3 (Rápido)</option>
-                <option :value="5">Nivel 5 (Estándar)</option>
-                <option :value="7">Nivel 7 (Profundo)</option>
-                <option :value="10">Nivel 10 (Ultra Profundo)</option>
+                <option :value="3">{{ t('Nivel 3 (Rápido)') }}</option>
+                <option :value="5">{{ t('Nivel 5 (Estándar)') }}</option>
+                <option :value="7">{{ t('Nivel 7 (Profundo)') }}</option>
+                <option :value="10">{{ t('Nivel 10 (Ultra Profundo)') }}</option>
               </select>
 
               <button
@@ -217,7 +217,7 @@
                 class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-[var(--bks-on-accent)] rounded-lg text-xs font-medium flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-sm active:scale-[0.98]"
               >
                 <RefreshCw class="w-3.5 h-3.5" :class="loadingProjects ? 'animate-spin' : ''" />
-                <span>{{ loadingProjects ? 'Buscando...' : 'Escanear' }}</span>
+                <span>{{ loadingProjects ? t('Buscando...') : t('Escanear') }}</span>
               </button>
             </div>
           </div>
@@ -226,7 +226,7 @@
 
       <!-- Empty State -->
       <div v-if="filteredProjects.length === 0" class="p-8 text-center text-xs text-slate-500 bg-slate-950/40 rounded-lg border border-dashed border-white/[0.08]">
-        {{ projects.length === 0 ? `No se encontraron bases de datos en ${scanPath} (profundidad ${scanDepth}). Prueba seleccionando otra carpeta o aumentando la profundidad.` : 'No hay proyectos locales que coincidan con el filtro seleccionado.' }}
+        {{ projects.length === 0 ? t('No se encontraron bases de datos en {path} (profundidad {depth}). Prueba seleccionando otra carpeta o aumentando la profundidad.', { path: scanPath, depth: scanDepth }) : t('No hay proyectos locales que coincidan con el filtro seleccionado.') }}
       </div>
 
       <!-- Projects Grid -->
@@ -259,16 +259,16 @@
           <!-- Body Info: File-based vs Client-Server -->
           <div v-if="p.isLocalFile || p.motor === 'sqlite' || p.motor === 'duckdb'" class="text-[11px] text-slate-400 space-y-1 font-mono">
             <div class="flex justify-between">
-              <span class="text-slate-500">Archivo:</span>
+              <span class="text-slate-500">{{ t('Archivo:') }}</span>
               <span class="text-amber-300 font-semibold">{{ p.database }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Tamaño:</span>
-              <span class="text-slate-300">{{ p.fileSize || 'Vacío / En blanco' }}</span>
+              <span class="text-slate-500">{{ t('Tamaño:') }}</span>
+              <span class="text-slate-300">{{ p.fileSize || t('Vacío / En blanco') }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Tipo:</span>
-              <span class="text-slate-300">Base de datos de archivo</span>
+              <span class="text-slate-500">{{ t('Tipo:') }}</span>
+              <span class="text-slate-300">{{ t('Base de datos de archivo') }}</span>
             </div>
             <div class="text-[10px] text-slate-500 truncate pt-1 border-t border-white/[0.04]" :title="p.filePath || p.path">
               {{ p.filePath || p.path }}
@@ -277,15 +277,15 @@
 
           <div v-else class="text-[11px] text-slate-400 space-y-1 font-mono">
             <div class="flex justify-between">
-              <span class="text-slate-500">Base de datos:</span>
+              <span class="text-slate-500">{{ t('Base de datos:') }}</span>
               <span class="text-white font-semibold">{{ p.database || 'N/A' }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Host / Puerto:</span>
+              <span class="text-slate-500">{{ t('Host / Puerto:') }}</span>
               <span class="text-slate-300">{{ p.host }}:{{ p.port || getDefaultPort(p.motor) }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Usuario:</span>
+              <span class="text-slate-500">{{ t('Usuario:') }}</span>
               <span class="text-slate-300">{{ p.username }}</span>
             </div>
             <div class="text-[10px] text-slate-500 truncate pt-1 border-t border-white/[0.04]" :title="p.path">
@@ -301,10 +301,10 @@
                 v-if="p.isLocalFile || p.motor === 'sqlite' || p.motor === 'duckdb'"
                 @click="copySqlitePath(p)"
                 class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
-                title="Copiar ruta absoluta del archivo"
+                :title="t('Copiar ruta absoluta del archivo')"
               >
                 <Copy class="w-3 h-3 text-slate-400" />
-                <span>Copiar Ruta</span>
+                <span>{{ t('Copiar Ruta') }}</span>
               </button>
 
               <!-- URL / Config copy -->
@@ -312,16 +312,16 @@
                 v-else
                 @click="copyProjectConn(p)"
                 class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
-                title="Copiar URI de conexión"
+                :title="t('Copiar URI de conexión')"
               >
                 <Copy class="w-3 h-3 text-slate-400" />
-                <span>Copiar URL</span>
+                <span>{{ t('Copiar URL') }}</span>
               </button>
 
               <button
                 @click="copyProjectHostPort(p)"
                 class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded border border-white/[0.08] text-[11px] flex items-center gap-1.5 transition cursor-pointer"
-                title="Copiar Host:Port o Ruta"
+                :title="t('Copiar Host:Port o Ruta')"
               >
                 <Copy class="w-3 h-3 text-slate-400" />
                 <span>{{ p.isLocalFile ? 'URI' : 'Host:Port' }}</span>
@@ -333,17 +333,17 @@
                 @click="saveProjectConnection(p)"
                 :disabled="savingId === (p.uniqueKey || p.path)"
                 class="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded border border-emerald-500/30 text-[11px] flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
-                title="Guardar directamente como conexión en Beekeeper Studio"
+                :title="t('Guardar directamente como conexión en Beekeeper Studio')"
               >
                 <BookmarkPlus class="w-3 h-3 text-emerald-400" />
-                <span>Guardar</span>
+                <span>{{ t('Guardar') }}</span>
               </button>
 
               <span v-if="copiedId === (p.uniqueKey || p.path)" class="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
-                <Check class="w-3 h-3" /> Copiado
+                <Check class="w-3 h-3" /> {{ t('Copiado') }}
               </span>
               <span v-if="savedId === (p.uniqueKey || p.path)" class="text-[11px] text-sky-400 font-medium flex items-center gap-1">
-                <Check class="w-3 h-3" /> En Beekeeper
+                <Check class="w-3 h-3" /> {{ t('En Beekeeper') }}
               </span>
             </div>
           </div>
@@ -368,6 +368,7 @@ import {
   Filter
 } from 'lucide-vue-next';
 import CompanionOfflineBanner from './CompanionOfflineBanner.vue';
+import { t } from '../i18n';
 import {
   getDockerContainers,
   getDiscoveredProjects,
@@ -437,14 +438,14 @@ const engineFilters = computed(() => {
   projects.value.forEach(p => countItem(p.motor));
 
   return [
-    { id: 'all', label: 'Todos', count: counts.all },
+    { id: 'all', label: t('Todos'), count: counts.all },
     { id: 'mysql', label: 'MySQL / MariaDB', count: counts.mysql },
     { id: 'postgresql', label: 'PostgreSQL', count: counts.postgresql },
     { id: 'sqlite', label: 'SQLite', count: counts.sqlite },
     { id: 'redis', label: 'Redis', count: counts.redis },
     { id: 'mongodb', label: 'MongoDB', count: counts.mongodb },
     { id: 'sqlserver', label: 'SQL Server', count: counts.sqlserver },
-    { id: 'other', label: 'Otros', count: counts.other }
+    { id: 'other', label: t('Otros'), count: counts.other }
   ].filter(f => f.id === 'all' || f.count > 0);
 });
 
@@ -576,7 +577,7 @@ async function saveDockerConnection(c: DockerContainer) {
       showNotification(res.message, res.alreadyExists ? 'info' : 'success');
       setTimeout(() => { savedId.value = null; }, 3000);
     } else {
-      showNotification(res.message || 'Error al guardar conexión', 'error');
+      showNotification(res.message || t('Error al guardar conexión'), 'error');
     }
   } finally {
     savingId.value = null;
@@ -604,7 +605,7 @@ async function saveProjectConnection(p: DiscoveredProject) {
       showNotification(res.message, res.alreadyExists ? 'info' : 'success');
       setTimeout(() => { savedId.value = null; }, 3000);
     } else {
-      showNotification(res.message || 'Error al guardar conexión', 'error');
+      showNotification(res.message || t('Error al guardar conexión'), 'error');
     }
   } finally {
     savingId.value = null;

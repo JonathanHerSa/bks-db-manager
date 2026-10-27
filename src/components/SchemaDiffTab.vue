@@ -4,17 +4,17 @@
     <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] shadow-sm">
       <div class="flex items-center gap-2">
         <GitCompare class="w-5 h-5 text-sky-400" />
-        <h2 class="text-base font-semibold text-white">Comparador de Esquemas & Migraciones SQL</h2>
+        <h2 class="text-base font-semibold text-white">{{ t('Comparador de Esquemas & Migraciones SQL') }}</h2>
       </div>
       <p class="text-xs text-slate-400 mt-1">
-        Inspecciona diferencias estructurales entre dos bases de datos (incluso en distintas conexiones como Producción vs Docker) y genera automáticamente el script <code>ALTER TABLE</code> para sincronizarlas.
+        {{ t('Inspecciona diferencias estructurales entre dos bases de datos (incluso en distintas conexiones como Producción vs Docker) y genera automáticamente el script') }} <code>ALTER TABLE</code> {{ t('para sincronizarlas.') }}
       </p>
     </div>
 
     <!-- Daemon Warning -->
     <CompanionOfflineBanner
       v-if="!daemonConnected"
-      reason="no se pueden listar conexiones ni inspeccionar esquemas cruzados"
+      :reason="t('no se pueden listar conexiones ni inspeccionar esquemas cruzados')"
       @retry="retryDaemon"
     />
 
@@ -26,17 +26,17 @@
           <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">1. Base de Referencia / Origen</h3>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">{{ t('1. Base de Referencia / Origen') }}</h3>
             </div>
             <span v-if="sourceDbs.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">
-              {{ sourceDbs.length }} BDs
+              {{ t('{count} BDs', { count: sourceDbs.length }) }}
             </span>
           </div>
 
           <!-- Conn 1 Select -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-medium text-slate-400">Conexión Origen</label>
+              <label class="block text-xs font-medium text-slate-400">{{ t('Conexión Origen') }}</label>
               <span v-if="selectedConn1?.isBeekeeper" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-medium">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 Beekeeper
@@ -55,12 +55,12 @@
 
           <!-- DB 1 Select -->
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Base de Datos</label>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">{{ t('Base de Datos') }}</label>
             <SearchableSelect
               v-model="sourceDb"
               :options="sourceDbs"
               :allow-custom="false"
-              placeholder="Escribe para filtrar o buscar base de referencia..."
+              :placeholder="t('Escribe para filtrar o buscar base de referencia...')"
             />
           </div>
         </div>
@@ -70,17 +70,17 @@
           <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">2. Base Destino a Actualizar</h3>
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">{{ t('2. Base Destino a Actualizar') }}</h3>
             </div>
             <span v-if="targetDbs.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 font-mono">
-              {{ targetDbs.length }} BDs
+              {{ t('{count} BDs', { count: targetDbs.length }) }}
             </span>
           </div>
 
           <!-- Conn 2 Select -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-medium text-slate-400">Conexión Destino</label>
+              <label class="block text-xs font-medium text-slate-400">{{ t('Conexión Destino') }}</label>
               <span v-if="selectedConn2?.isBeekeeper" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-medium">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 Beekeeper
@@ -99,12 +99,12 @@
 
           <!-- DB 2 Select -->
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Base de Datos</label>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">{{ t('Base de Datos') }}</label>
             <SearchableSelect
               v-model="targetDb"
               :options="targetDbs"
               :allow-custom="false"
-              placeholder="Escribe para filtrar o buscar base destino..."
+              :placeholder="t('Escribe para filtrar o buscar base destino...')"
             />
           </div>
         </div>
@@ -113,7 +113,7 @@
       <!-- Settings & Action bar -->
       <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-900/40 rounded-xl border border-white/[0.06]">
         <div class="flex items-center gap-3">
-          <label class="text-xs text-slate-400 font-medium">Dialecto SQL Destino:</label>
+          <label class="text-xs text-slate-400 font-medium">{{ t('Dialecto SQL Destino:') }}</label>
           <div class="inline-flex rounded-lg bg-slate-950 p-0.5 border border-white/[0.08]">
             <button
               type="button"
@@ -138,11 +138,11 @@
           <button
             @click="swapDatabases"
             :disabled="!sourceDb && !targetDb"
-            title="Intercambiar bases de datos y conexiones"
+            :title="t('Intercambiar bases de datos y conexiones')"
             class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/[0.08] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]"
           >
             <ArrowLeftRight class="w-3.5 h-3.5" />
-            <span>Intercambiar</span>
+            <span>{{ t('Intercambiar') }}</span>
           </button>
 
           <button
@@ -151,7 +151,7 @@
             class="px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
           >
             <Search class="w-4 h-4" :class="isComparing ? 'animate-spin' : ''" />
-            <span>{{ isComparing ? 'Comparando esquemas...' : 'Comparar Esquemas' }}</span>
+            <span>{{ isComparing ? t('Comparando esquemas...') : t('Comparar Esquemas') }}</span>
           </button>
         </div>
       </div>
@@ -163,28 +163,28 @@
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
           <div class="text-2xl font-bold text-emerald-400 font-mono">{{ diffSummary.missingTables.length }}</div>
-          <div class="text-xs text-slate-300 mt-1 font-medium">Tablas Faltantes en Destino</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">{{ t('Tablas Faltantes en Destino') }}</div>
         </div>
         <div class="p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
           <div class="text-2xl font-bold text-sky-400 font-mono">{{ diffSummary.missingColumns.length }}</div>
-          <div class="text-xs text-slate-300 mt-1 font-medium">Columnas Faltantes</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">{{ t('Columnas Faltantes') }}</div>
         </div>
         <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
           <div class="text-2xl font-bold text-amber-400 font-mono">{{ diffSummary.typeChanges.length }}</div>
-          <div class="text-xs text-slate-300 mt-1 font-medium">Discrepancias de Tipo</div>
+          <div class="text-xs text-slate-300 mt-1 font-medium">{{ t('Discrepancias de Tipo') }}</div>
         </div>
       </div>
 
       <!-- Detailed Diff List -->
       <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-3.5 shadow-sm">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">Detalle de Discrepancias</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">{{ t('Detalle de Discrepancias') }}</h3>
 
         <div
           v-if="diffSummary.missingTables.length === 0 && diffSummary.missingColumns.length === 0 && diffSummary.typeChanges.length === 0"
           class="p-6 text-center text-xs text-emerald-400 bg-emerald-500/5 rounded-lg border border-emerald-500/20 flex items-center justify-center gap-2"
         >
           <CheckCircle2 class="w-4 h-4 text-emerald-400" />
-          <span>Ambos esquemas son completamente idénticos. No se encontraron diferencias.</span>
+          <span>{{ t('Ambos esquemas son completamente idénticos. No se encontraron diferencias.') }}</span>
         </div>
 
         <div v-else class="space-y-2">
@@ -194,8 +194,8 @@
             :key="'tbl-' + tbl"
             class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs font-mono"
           >
-            <span class="text-white">Tabla: <strong>{{ tbl }}</strong></span>
-            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold uppercase">+ Falta en Destino</span>
+            <span class="text-white">{{ t('Tabla:') }} <strong>{{ tbl }}</strong></span>
+            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold uppercase">{{ t('+ Falta en Destino') }}</span>
           </div>
 
           <!-- Missing columns -->
@@ -207,7 +207,7 @@
             <span class="text-white">
               {{ col.table }}.<strong class="text-sky-300">{{ col.column }}</strong> ({{ col.type }})
             </span>
-            <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-semibold uppercase">+ Columna Faltante</span>
+            <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-semibold uppercase">{{ t('+ Columna Faltante') }}</span>
           </div>
 
           <!-- Type mismatches -->
@@ -221,7 +221,7 @@
               <span class="text-slate-400 line-through mr-1">{{ ch.dstType }}</span>
               <span class="text-amber-300 font-bold">➔ {{ ch.srcType }}</span>
             </span>
-            <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-semibold uppercase">~ Cambio de Tipo</span>
+            <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-semibold uppercase">{{ t('~ Cambio de Tipo') }}</span>
           </div>
         </div>
       </div>
@@ -262,18 +262,18 @@
               v-if="activeOutputTab === 'sql'"
               @click="openInBeekeeperEditor"
               class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-[var(--bks-on-accent)] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.98]"
-              title="Abrir este script en una nueva pestaña del editor de Beekeeper Studio"
+              :title="t('Abrir este script en una nueva pestaña del editor de Beekeeper Studio')"
             >
               <ExternalLink class="w-3.5 h-3.5" />
-              <span>Abrir en Editor</span>
+              <span>{{ t('Abrir en Editor') }}</span>
             </button>
             <button
               @click="saveFile"
               class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-              :title="activeOutputTab === 'sql' ? 'Guardar script como archivo .sql' : 'Guardar migración como archivo .php'"
+              :title="activeOutputTab === 'sql' ? t('Guardar script como archivo .sql') : t('Guardar migración como archivo .php')"
             >
               <Download class="w-3.5 h-3.5 text-slate-400" />
-              <span>{{ activeOutputTab === 'sql' ? 'Guardar .sql' : 'Guardar .php' }}</span>
+              <span>{{ activeOutputTab === 'sql' ? t('Guardar .sql') : t('Guardar .php') }}</span>
             </button>
             <button
               @click="copyCode"
@@ -281,7 +281,7 @@
             >
               <Check v-if="copied" class="w-3.5 h-3.5 text-emerald-400" />
               <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
-              <span>{{ copied ? '¡Copiado!' : (activeOutputTab === 'sql' ? 'Copiar SQL' : 'Copiar PHP') }}</span>
+              <span>{{ copied ? t('¡Copiado!') : (activeOutputTab === 'sql' ? t('Copiar SQL') : t('Copiar PHP')) }}</span>
             </button>
           </div>
         </div>
@@ -332,6 +332,7 @@ import {
   type DiffResult
 } from '../services/schemaDiff';
 import SearchableSelect from './SearchableSelect.vue';
+import { t } from '../i18n';
 
 const availableConns = ref<SavedConnection[]>([]);
 const daemonConnected = ref(false);
@@ -458,7 +459,7 @@ async function getColumnsForConn(conn: SavedConnection | null, db: string): Prom
 
   // 2. Fallback to active Beekeeper connection executeQuery
   if (!isSafeIdentifier(db)) {
-    console.warn(`Nombre de base de datos con caracteres no permitidos, se omite fallback SQL: ${db}`);
+    console.warn(t('Nombre de base de datos con caracteres no permitidos, se omite fallback SQL: {db}', { db }));
     return [];
   }
   const q = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
@@ -501,7 +502,7 @@ async function runSchemaDiff() {
   cachedDiff.value = null;
 
   if (!isSafeIdentifier(sourceDb.value) || !isSafeIdentifier(targetDb.value)) {
-    console.error('Nombre de base de datos origen/destino con caracteres no permitidos.');
+    console.error(t('Nombre de base de datos origen/destino con caracteres no permitidos.'));
     isComparing.value = false;
     return;
   }
@@ -603,9 +604,9 @@ async function openInBeekeeperEditor() {
   if (!generatedSql.value) return;
   const opened = await openQueryInBeekeeper(generatedSql.value);
   if (opened) {
-    showNotification('Script de migración abierto en una nueva pestaña del editor.', 'success');
+    showNotification(t('Script de migración abierto en una nueva pestaña del editor.'), 'success');
   } else {
-    showNotification('No se pudo abrir el editor nativo de Beekeeper.', 'warning');
+    showNotification(t('No se pudo abrir el editor nativo de Beekeeper.'), 'warning');
   }
 }
 
@@ -624,7 +625,7 @@ async function saveSqlFile() {
     { name: 'SQL Scripts (*.sql)', extensions: ['sql'] }
   ]);
   if (saved) {
-    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
+    showNotification(t('Archivo {file} exportado correctamente.', { file: fileName }), 'success');
   }
 }
 
@@ -635,7 +636,7 @@ async function saveLaravelFile() {
     { name: 'PHP Files (*.php)', extensions: ['php'] }
   ]);
   if (saved) {
-    showNotification(`Archivo ${fileName} exportado correctamente.`, 'success');
+    showNotification(t('Archivo {file} exportado correctamente.', { file: fileName }), 'success');
   }
 }
 

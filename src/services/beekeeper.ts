@@ -14,6 +14,7 @@ import {
   confirm as pluginConfirm,
   getViewContext
 } from '@beekeeperstudio/plugin';
+import { t } from '../i18n';
 
 export interface ColumnInfo {
   name: string;
@@ -47,7 +48,7 @@ export async function fetchCurrentConnection(): Promise<ConnectionData | null> {
   try {
     const info = await getConnectionInfo();
     return {
-      connectionName: info.connectionName || 'Conexión Actual',
+      connectionName: info.connectionName || t('Conexión Actual'),
       databaseName: info.databaseName || '',
       databaseType: info.databaseType || 'mysql'
     };
@@ -570,7 +571,7 @@ export async function openTableInBeekeeper(
     return Promise.race([
       openTab('tableTable', options),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Beekeeper no respondió en 5 s')), 5000)
+        setTimeout(() => reject(new Error(t('Beekeeper no respondió en 5 s'))), 5000)
       ),
     ]);
   };
@@ -586,7 +587,7 @@ export async function openTableInBeekeeper(
       }
       return true;
     }
-    onError?.('openTab no está disponible en este entorno');
+    onError?.(t('openTab no está disponible en este entorno'));
   } catch (err: any) {
     console.warn('Error al abrir tableTable tab en Beekeeper:', err);
     onError?.(err?.message || String(err));
@@ -598,12 +599,12 @@ export async function openTableInBeekeeper(
  * Muestra un diálogo de confirmación nativo usando el SDK de Beekeeper Studio,
  * o recurre a window.confirm si se ejecuta fuera de Beekeeper.
  */
-export async function confirmAction(message: string, title: string = 'Confirmar acción'): Promise<boolean> {
+export async function confirmAction(message: string, title: string = t('Confirmar acción')): Promise<boolean> {
   try {
     if (typeof pluginConfirm === 'function') {
       const res = await pluginConfirm(title, message, {
-        confirmLabel: 'Continuar',
-        cancelLabel: 'Cancelar'
+        confirmLabel: t('Continuar'),
+        cancelLabel: t('Cancelar')
       });
       return Boolean(res);
     }

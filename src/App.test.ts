@@ -12,6 +12,7 @@ vi.mock('./services/beekeeper', () => ({
 }))
 
 import App from './App.vue'
+import { setLocale } from './i18n'
 
 let wrapper: VueWrapper<any> | null = null
 
@@ -28,6 +29,7 @@ beforeEach(() => {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
+  setLocale('es')
 })
 
 // The tab components pull in the companion/beekeeper services and heavy
@@ -89,6 +91,21 @@ describe('App', () => {
     await flushPromises()
     expect(wrapper!.text()).toContain('SnapshotsTab stub')
     expect(wrapper!.text()).not.toContain('CloneStreamTab stub')
+  })
+
+  it('switches the whole shell to English from the language switcher', async () => {
+    await mountApp()
+    const englishBtn = wrapper!.findAll('button').find((b) => b.text().trim() === 'en')
+    await englishBtn!.trigger('click')
+    await flushPromises()
+    expect(wrapper!.text()).toContain('Stream Clone (A ➔ B)')
+    expect(wrapper!.text()).toContain('Active connection:')
+    expect(wrapper!.text()).not.toContain('Clonado Stream (A ➔ B)')
+
+    const spanishBtn = wrapper!.findAll('button').find((b) => b.text().trim() === 'es')
+    await spanishBtn!.trigger('click')
+    await flushPromises()
+    expect(wrapper!.text()).toContain('Clonado Stream (A ➔ B)')
   })
 
   it('switches to the Schema Diff tab when clicked', async () => {

@@ -5,10 +5,10 @@
       <div>
         <div class="flex items-center gap-2">
           <RefreshCw class="w-5 h-5 text-sky-400" />
-          <h2 class="text-base font-semibold text-white">Clonado Directo en Vivo (Stream A ➔ B)</h2>
+          <h2 class="text-base font-semibold text-white">{{ t('Clonado Directo en Vivo (Stream A ➔ B)') }}</h2>
         </div>
         <p class="text-xs text-slate-400 mt-1">
-          Transfiere bases de datos completas entre servidores (Prod ➔ Local/Docker) mediante pipes en streaming sin tocar el disco.
+          {{ t('Transfiere bases de datos completas entre servidores (Prod ➔ Local/Docker) mediante pipes en streaming sin tocar el disco.') }}
         </p>
       </div>
 
@@ -18,7 +18,7 @@
           class="px-3 py-1 text-xs rounded-full border flex items-center gap-2 font-medium"
         >
           <span class="w-2 h-2 rounded-full" :class="daemonConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse' : 'bg-rose-400'"></span>
-          {{ daemonConnected ? 'Companion Activo' : 'Companion Offline' }}
+          {{ daemonConnected ? t('Companion Activo') : t('Companion Offline') }}
         </span>
       </div>
     </div>
@@ -33,14 +33,14 @@
         <div class="flex items-center justify-between pb-3 border-b border-white/[0.06]">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">1. Servidor Origen (Lectura)</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">{{ t('1. Servidor Origen (Lectura)') }}</h3>
           </div>
           <span class="text-[11px] font-mono text-slate-500">mysqldump pipe</span>
         </div>
 
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-medium text-slate-400">Conexión Guardada</label>
+            <label class="block text-xs font-medium text-slate-400">{{ t('Conexión Guardada') }}</label>
             <span v-if="selectedSourceConn?.isBeekeeper" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-medium">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               Beekeeper Studio
@@ -51,7 +51,7 @@
             @change="onSourceConnChange"
             class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition cursor-pointer"
           >
-            <option value="custom">Configuración Manual...</option>
+            <option value="custom">{{ t('Configuración Manual...') }}</option>
             <option v-for="c in availableConns" :key="'src-' + c.id" :value="c">
               {{ formatConnOption(c, availableConns) }}
             </option>
@@ -59,7 +59,7 @@
         </div>
 
         <div>
-          <label class="block text-xs text-slate-400 mb-1">Motor</label>
+          <label class="block text-xs text-slate-400 mb-1">{{ t('Motor') }}</label>
           <select
             v-model="source.motor"
             :disabled="selectedSourceConn !== 'custom'"
@@ -79,7 +79,7 @@
             />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Puerto</label>
+            <label class="block text-xs text-slate-400 mb-1">{{ t('Puerto') }}</label>
             <input
               v-model.number="source.port"
               type="number"
@@ -91,7 +91,7 @@
 
         <div class="grid grid-cols-2 gap-2.5">
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Usuario</label>
+            <label class="block text-xs text-slate-400 mb-1">{{ t('Usuario') }}</label>
             <input
               v-model="source.user"
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
@@ -99,12 +99,12 @@
             />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+            <label class="block text-xs text-slate-400 mb-1">{{ t('Contraseña') }}</label>
             <input
               v-model="source.pass"
               type="password"
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-              :placeholder="selectedSourceConn !== 'custom' && selectedSourceConn?.hasPassword ? 'Usar contraseña guardada' : '••••••••'"
+              :placeholder="selectedSourceConn !== 'custom' && selectedSourceConn?.hasPassword ? t('Usar contraseña guardada') : '••••••••'"
             />
           </div>
         </div>
@@ -112,9 +112,9 @@
         <div>
           <div class="flex items-center justify-between mb-1.5">
             <div class="flex items-center gap-2">
-              <label class="block text-xs text-slate-400">Base de Datos Origen</label>
+              <label class="block text-xs text-slate-400">{{ t('Base de Datos Origen') }}</label>
               <span v-if="sourceDbs.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono">
-                {{ sourceDbs.length }} BDs disponibles
+                {{ t('{count} BDs disponibles', { count: sourceDbs.length }) }}
               </span>
             </div>
             <button
@@ -124,26 +124,26 @@
               class="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
             >
               <RefreshCw class="w-3 h-3" :class="loadingSourceDbs ? 'animate-spin' : ''" />
-              <span>{{ loadingSourceDbs ? 'Consultando...' : 'Recargar BDs' }}</span>
+              <span>{{ loadingSourceDbs ? t('Consultando...') : t('Recargar BDs') }}</span>
             </button>
           </div>
           <SearchableSelect
             v-model="source.db"
             :options="sourceDbs"
             :allow-custom="false"
-            placeholder="Escribe para filtrar o buscar BD origen..."
+            :placeholder="t('Escribe para filtrar o buscar BD origen...')"
             @change="onSourceDbChange"
           />
 
           <!-- Database stats summary -->
           <div v-if="sourceDbStats && source.db" class="mt-2.5 p-2.5 rounded-lg bg-slate-950/80 border border-white/[0.06] text-xs font-mono space-y-1">
             <div class="flex items-center justify-between text-slate-300">
-              <span class="text-slate-400">Tamaño SQL estimado:</span>
+              <span class="text-slate-400">{{ t('Tamaño SQL estimado:') }}</span>
               <strong class="text-sky-400 font-semibold text-xs">{{ formatMb(sourceDbStats.sqlMb) }}</strong>
             </div>
             <div class="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-white/[0.04]">
-              <span>Almacenamiento InnoDB: {{ formatMb(sourceDbStats.mb) }}</span>
-              <span>{{ sourceDbStats.tables }} tablas</span>
+              <span>{{ t('Almacenamiento InnoDB: {size}', { size: formatMb(sourceDbStats.mb) }) }}</span>
+              <span>{{ t('{count} tablas', { count: sourceDbStats.tables }) }}</span>
             </div>
           </div>
         </div>
@@ -154,14 +154,14 @@
         <div class="flex items-center justify-between pb-3 border-b border-white/[0.06]">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">2. Servidor Destino (Escritura)</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">{{ t('2. Servidor Destino (Escritura)') }}</h3>
           </div>
           <span class="text-[11px] font-mono text-slate-500">mysql import pipe</span>
         </div>
 
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <label class="block text-xs font-medium text-slate-400">Conexión Guardada</label>
+            <label class="block text-xs font-medium text-slate-400">{{ t('Conexión Guardada') }}</label>
             <span v-if="selectedDestConn?.isBeekeeper" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-medium">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               Beekeeper Studio
@@ -172,7 +172,7 @@
             @change="onDestConnChange"
             class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition cursor-pointer"
           >
-            <option value="custom">Configuración Manual...</option>
+            <option value="custom">{{ t('Configuración Manual...') }}</option>
             <option v-for="c in availableConns" :key="'dst-' + c.id" :value="c">
               {{ formatConnOption(c, availableConns) }}
             </option>
@@ -180,7 +180,7 @@
         </div>
 
         <div>
-          <label class="block text-xs text-slate-400 mb-1">Motor</label>
+          <label class="block text-xs text-slate-400 mb-1">{{ t('Motor') }}</label>
           <select
             v-model="dest.motor"
             :disabled="selectedDestConn !== 'custom'"
@@ -200,7 +200,7 @@
             />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Puerto</label>
+            <label class="block text-xs text-slate-400 mb-1">{{ t('Puerto') }}</label>
             <input
               v-model.number="dest.port"
               type="number"
@@ -212,7 +212,7 @@
 
         <div class="grid grid-cols-2 gap-2.5">
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Usuario</label>
+            <label class="block text-xs text-slate-400 mb-1">{{ t('Usuario') }}</label>
             <input
               v-model="dest.user"
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
@@ -220,12 +220,12 @@
             />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+            <label class="block text-xs text-slate-400 mb-1">{{ t('Contraseña') }}</label>
             <input
               v-model="dest.pass"
               type="password"
               class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-              :placeholder="selectedDestConn !== 'custom' && selectedDestConn?.hasPassword ? 'Usar contraseña guardada' : '••••••••'"
+              :placeholder="selectedDestConn !== 'custom' && selectedDestConn?.hasPassword ? t('Usar contraseña guardada') : '••••••••'"
             />
           </div>
         </div>
@@ -233,9 +233,9 @@
         <div>
           <div class="flex items-center justify-between mb-1.5">
             <div class="flex items-center gap-2">
-              <label class="block text-xs text-slate-400">Base de Datos Destino</label>
+              <label class="block text-xs text-slate-400">{{ t('Base de Datos Destino') }}</label>
               <span v-if="destDbs.length > 0" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">
-                {{ destDbs.length }} en destino
+                {{ t('{count} en destino', { count: destDbs.length }) }}
               </span>
             </div>
             <button
@@ -243,14 +243,14 @@
               type="button"
               class="text-[11px] text-sky-400 hover:text-sky-300 transition cursor-pointer"
             >
-              Copiar de origen
+              {{ t('Copiar de origen') }}
             </button>
           </div>
           <SearchableSelect
             v-model="dest.db"
             :options="destDbs"
             :allow-custom="true"
-            placeholder="Escribe o busca BD destino (o nombre nuevo)..."
+            :placeholder="t('Escribe o busca BD destino (o nombre nuevo)...')"
           />
         </div>
       </div>
@@ -262,10 +262,10 @@
         <div>
           <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
             <Shield class="w-4 h-4 text-sky-400" />
-            Filtro de Tablas & Sanitización de Datos
+            {{ t('Filtro de Tablas & Sanitización de Datos') }}
           </h3>
           <p class="text-xs text-slate-400 mt-0.5">
-            Sanitiza sentencias problemáticas en dumps y excluye tablas pesadas de auditoría para acelerar el clonado.
+            {{ t('Sanitiza sentencias problemáticas en dumps y excluye tablas pesadas de auditoría para acelerar el clonado.') }}
           </p>
         </div>
       </div>
@@ -274,24 +274,24 @@
         <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/[0.12] transition cursor-pointer">
           <input type="checkbox" v-model="maskData" class="mt-0.5 rounded text-sky-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 border-white/20" />
           <div>
-            <span class="text-xs font-medium text-slate-200 block">Enmascarar Datos Sensibles (Data Masking)</span>
-            <span class="text-[11px] text-slate-400 block mt-0.5">Ofusca correos electrónicos (ej. <code>us***@masked.local</code>) para proteger datos privados en local.</span>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Enmascarar Datos Sensibles (Data Masking)') }}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">{{ t('Ofusca correos electrónicos (ej.') }} <code>us***@masked.local</code>{{ t(') para proteger datos privados en local.') }}</span>
           </div>
         </label>
 
         <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] opacity-80 cursor-default">
           <input type="checkbox" v-model="autoSanitize" checked disabled class="mt-0.5 rounded text-sky-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 border-white/20" />
           <div>
-            <span class="text-xs font-medium text-slate-200 block">Sanitización Automática de Dumps (Activa)</span>
-            <span class="text-[11px] text-slate-400 block mt-0.5">Remueve automáticamente cláusulas <code>DEFINER</code>, <code>USE</code>, <code>CREATE DATABASE</code> y <code>SQL_LOG_BIN</code>.</span>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Sanitización Automática de Dumps (Activa)') }}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">{{ t('Remueve automáticamente cláusulas') }} <code>DEFINER</code>, <code>USE</code>, <code>CREATE DATABASE</code> {{ t('y') }} <code>SQL_LOG_BIN</code>.</span>
           </div>
         </label>
 
         <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/10 cursor-pointer transition-colors">
           <input type="checkbox" v-model="cleanDest" class="mt-0.5 rounded text-sky-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 border-white/20" />
           <div>
-            <span class="text-xs font-medium text-slate-200 block">Recrear base de datos destino (Idempotencia / Clean Slate)</span>
-            <span class="text-[11px] text-slate-400 block mt-0.5">Ejecuta <code>DROP DATABASE IF EXISTS</code> antes de clonar para limpiar tablas huérfanas o intentos parciales.</span>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Recrear base de datos destino (Idempotencia / Clean Slate)') }}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">{{ t('Ejecuta') }} <code>DROP DATABASE IF EXISTS</code> {{ t('antes de clonar para limpiar tablas huérfanas o intentos parciales.') }}</span>
           </div>
         </label>
       </div>
@@ -300,34 +300,34 @@
       <div v-if="availableTables.length > 0" class="space-y-2.5 pt-2 border-t border-white/[0.06]">
         <div class="flex items-center justify-between">
           <span class="text-xs font-medium text-slate-300">
-            Tablas a incluir ({{ selectedTablesCount }} de {{ availableTables.length }} seleccionadas):
+            {{ t('Tablas a incluir ({selected} de {total} seleccionadas):', { selected: selectedTablesCount, total: availableTables.length }) }}
           </span>
           <div class="flex items-center gap-2">
             <button
               @click="excludeHeavyTables"
               class="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[11px] font-medium transition cursor-pointer"
             >
-              Excluir Logs / Pulse / Telemetría
+              {{ t('Excluir Logs / Pulse / Telemetría') }}
             </button>
-            <button @click="selectAllTables(true)" class="text-xs text-sky-400 hover:text-sky-300 cursor-pointer">Todas</button>
+            <button @click="selectAllTables(true)" class="text-xs text-sky-400 hover:text-sky-300 cursor-pointer">{{ t('Todas') }}</button>
             <span class="text-slate-600">•</span>
-            <button @click="selectAllTables(false)" class="text-xs text-slate-400 hover:text-slate-300 cursor-pointer">Ninguna</button>
+            <button @click="selectAllTables(false)" class="text-xs text-slate-400 hover:text-slate-300 cursor-pointer">{{ t('Ninguna') }}</button>
           </div>
         </div>
 
         <div class="max-h-44 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 p-3 rounded-lg bg-slate-950/80 border border-white/[0.06]">
           <label
-            v-for="t in availableTables"
-            :key="t"
+            v-for="tbl in availableTables"
+            :key="tbl"
             class="flex items-center gap-2 text-xs text-slate-300 p-1.5 hover:bg-slate-900 rounded transition cursor-pointer"
           >
             <input
               type="checkbox"
-              :value="t"
+              :value="tbl"
               v-model="selectedTables"
               class="rounded text-sky-500 bg-slate-900 border-white/20"
             />
-            <span class="truncate font-mono text-[11px]" :title="t">{{ t }}</span>
+            <span class="truncate font-mono text-[11px]" :title="tbl">{{ tbl }}</span>
           </label>
         </div>
       </div>
@@ -342,7 +342,7 @@
         <div class="flex items-start gap-2.5">
           <XCircle class="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
           <div class="space-y-1">
-            <span class="font-semibold text-rose-300 text-sm block">Error en la transferencia</span>
+            <span class="font-semibold text-rose-300 text-sm block">{{ t('Error en la transferencia') }}</span>
             <p class="font-mono text-xs text-rose-200/90 whitespace-pre-wrap leading-relaxed">{{ cloneError }}</p>
           </div>
         </div>
@@ -351,16 +351,16 @@
             @click="copyError"
             type="button"
             class="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white rounded border border-rose-500/40 text-xs flex items-center gap-1.5 transition cursor-pointer font-sans"
-            title="Copiar mensaje de error al portapapeles"
+            :title="t('Copiar mensaje de error al portapapeles')"
           >
             <Check v-if="copiedError" class="w-3.5 h-3.5 text-emerald-400" />
             <Copy v-else class="w-3.5 h-3.5" />
-            <span>{{ copiedError ? '¡Copiado!' : 'Copiar Error' }}</span>
+            <span>{{ copiedError ? t('¡Copiado!') : t('Copiar Error') }}</span>
           </button>
           <button
             @click="cloneError = null"
             class="text-rose-400 hover:text-white p-1 rounded transition cursor-pointer text-xs"
-            title="Cerrar alerta"
+            :title="t('Cerrar alerta')"
           >
             ✕
           </button>
@@ -376,14 +376,14 @@
       <div class="flex items-center gap-2.5">
         <CheckCircle class="w-5 h-5 text-emerald-400 shrink-0" />
         <div>
-          <span class="font-semibold text-emerald-300 text-sm block">¡Clonado completado exitosamente!</span>
+          <span class="font-semibold text-emerald-300 text-sm block">{{ t('¡Clonado completado exitosamente!') }}</span>
           <span class="text-xs text-emerald-200/90">{{ cloneSuccess }}</span>
         </div>
       </div>
       <button
         @click="cloneSuccess = null"
         class="text-emerald-400 hover:text-white p-1 rounded transition cursor-pointer text-xs shrink-0"
-        title="Cerrar alerta"
+        :title="t('Cerrar alerta')"
       >
         ✕
       </button>
@@ -399,13 +399,13 @@
             class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.98]"
           >
             <Play class="w-4 h-4 fill-current" />
-            <span>Iniciar Clonado Stream</span>
+            <span>{{ t('Iniciar Clonado Stream') }}</span>
           </button>
           <span v-if="cloneMotorUnsupported" class="text-[11px] text-amber-400">
-            Clonado en streaming no soportado para {{ source.motor.toUpperCase() }} todavía.
+            {{ t('Clonado en streaming no soportado para {engine} todavía.', { engine: source.motor.toUpperCase() }) }}
           </span>
           <span v-else-if="cloneMotorMismatch" class="text-[11px] text-amber-400">
-            Origen ({{ source.motor.toUpperCase() }}) y destino ({{ dest.motor.toUpperCase() }}) deben ser el mismo motor.
+            {{ t('Origen ({source}) y destino ({dest}) deben ser el mismo motor.', { source: source.motor.toUpperCase(), dest: dest.motor.toUpperCase() }) }}
           </span>
         </div>
 
@@ -415,13 +415,13 @@
           class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer animate-pulse active:scale-[0.98]"
         >
           <Square class="w-4 h-4 fill-current" />
-          <span>Detener Operación</span>
+          <span>{{ t('Detener Operación') }}</span>
         </button>
 
         <div v-if="isCloning" class="text-xs text-slate-400 flex items-center gap-4 font-mono">
-          <span>Velocidad: <strong class="text-white">{{ progress.speedMb }} MB/s</strong></span>
-          <span>Transferido: <strong class="text-sky-400">{{ progress.mb }} MB</strong></span>
-          <span>Tiempo: <strong class="text-white">{{ progress.elapsedSec }}s</strong></span>
+          <span>{{ t('Velocidad:') }} <strong class="text-white">{{ progress.speedMb }} MB/s</strong></span>
+          <span>{{ t('Transferido:') }} <strong class="text-sky-400">{{ progress.mb }} MB</strong></span>
+          <span>{{ t('Tiempo:') }} <strong class="text-white">{{ progress.elapsedSec }}s</strong></span>
         </div>
       </div>
 
@@ -429,13 +429,13 @@
       <div v-if="isCloning" class="space-y-1.5">
         <div class="flex items-center justify-between text-xs text-slate-300 font-mono">
           <span>
-            Progreso: <strong class="text-sky-400">{{ transferPercent }}%</strong>
+            {{ t('Progreso:') }} <strong class="text-sky-400">{{ transferPercent }}%</strong>
             <span class="text-slate-500 text-[11px] ml-1">
-              ({{ progress.mb }} MB de ~{{ formatMb(sourceDbStats?.sqlMb || 4000) }})
+              {{ t('({mb} MB de ~{total})', { mb: progress.mb, total: formatMb(sourceDbStats?.sqlMb || 4000) }) }}
             </span>
           </span>
           <span v-if="estimatedTimeRemaining" class="text-emerald-400 text-xs font-mono flex items-center gap-1">
-            <span>Restante:</span>
+            <span>{{ t('Restante:') }}</span>
             <strong class="text-emerald-300">~{{ estimatedTimeRemaining }}</strong>
           </span>
         </div>
@@ -453,27 +453,27 @@
         <div class="px-3 py-1.5 bg-slate-900/90 border-b border-white/[0.06] flex items-center justify-between text-[11px] select-none">
           <div class="flex items-center gap-2 text-slate-400 font-mono">
             <Terminal class="w-3.5 h-3.5 text-sky-400" />
-            <span>Terminal de Streaming ({{ logs.length }} eventos)</span>
+            <span>{{ t('Terminal de Streaming ({count} eventos)', { count: logs.length }) }}</span>
           </div>
           <div class="flex items-center gap-2">
             <button
               @click="copyLogs"
               type="button"
               class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5 cursor-pointer font-sans text-xs border border-white/10"
-              title="Copiar todos los logs al portapapeles"
+              :title="t('Copiar todos los logs al portapapeles')"
             >
               <Check v-if="copiedLogs" class="w-3 h-3 text-emerald-400" />
               <Copy v-else class="w-3 h-3 text-slate-400" />
-              <span>{{ copiedLogs ? '¡Copiado!' : 'Copiar Logs' }}</span>
+              <span>{{ copiedLogs ? t('¡Copiado!') : t('Copiar Logs') }}</span>
             </button>
             <button
               @click="clearLogs"
               type="button"
               class="px-2 py-1 rounded hover:bg-slate-800 text-slate-400 hover:text-rose-300 transition text-xs font-sans flex items-center gap-1 cursor-pointer"
-              title="Limpiar terminal"
+              :title="t('Limpiar terminal')"
             >
               <Trash2 class="w-3 h-3" />
-              <span>Limpiar</span>
+              <span>{{ t('Limpiar') }}</span>
             </button>
           </div>
         </div>
@@ -525,6 +525,7 @@ import {
 import { listDatabasesForConnection } from '../services/connectionAccess';
 import { normalizeMotor, CLONE_STREAM_ENGINES } from '../../shared/dbEngines.js';
 import SearchableSelect from './SearchableSelect.vue';
+import { t } from '../i18n';
 
 const daemonConnected = ref(false);
 const availableConns = ref<SavedConnection[]>([]);
@@ -826,8 +827,8 @@ function excludeHeavyTables() {
     '_jsons',
     'cache'
   ];
-  selectedTables.value = availableTables.value.filter((t) => {
-    const lower = t.toLowerCase();
+  selectedTables.value = availableTables.value.filter((tbl) => {
+    const lower = tbl.toLowerCase();
     return !heavyKeywords.some((k) => lower.includes(k));
   });
 }
@@ -835,7 +836,7 @@ function excludeHeavyTables() {
 function startClone() {
   if (!canClone.value) return;
 
-  const excluded = availableTables.value.filter((t) => !selectedTables.value.includes(t));
+  const excluded = availableTables.value.filter((tbl) => !selectedTables.value.includes(tbl));
   logs.value = [];
   cloneError.value = null;
   cloneSuccess.value = null;
@@ -890,7 +891,7 @@ function stopClone() {
     stopCloneFn = null;
   }
   isCloning.value = false;
-  logs.value.push('⏹ Clonado cancelado por el usuario.');
+  logs.value.push(t('⏹ Clonado cancelado por el usuario.'));
   scrollToBottom();
 }
 

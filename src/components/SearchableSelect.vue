@@ -10,7 +10,7 @@
         @focus="onFocus"
         @click="onClick"
         @keydown="onKeyDown"
-        :placeholder="placeholder"
+        :placeholder="placeholder || t('Buscar o escribir base de datos...')"
         :disabled="disabled"
         autocomplete="off"
         spellcheck="false"
@@ -22,7 +22,7 @@
           @click.stop="clearSelection"
           type="button"
           class="hover:text-white p-1 rounded cursor-pointer transition text-slate-500 hover:text-slate-300"
-          title="Limpiar"
+          :title="t('Limpiar')"
         >
           <X class="w-3.5 h-3.5" />
         </button>
@@ -31,7 +31,7 @@
           type="button"
           class="hover:text-white p-1 rounded cursor-pointer transition text-slate-400"
           tabindex="-1"
-          title="Desplegar lista"
+          :title="t('Desplegar lista')"
         >
           <ChevronDown
             class="w-3.5 h-3.5 transition-transform duration-200"
@@ -59,8 +59,8 @@
           v-if="options.length > 0"
           class="px-3 py-1.5 bg-slate-950/80 border-b border-white/[0.06] text-[10px] font-mono text-slate-400 flex items-center justify-between select-none"
         >
-          <span>{{ filteredOptions.length }} de {{ options.length }} bases de datos</span>
-          <span v-if="userIsSearching && searchQuery" class="text-sky-400 truncate max-w-[150px]">Filtro: "{{ searchQuery }}"</span>
+          <span>{{ t('{shown} de {total} bases de datos', { shown: filteredOptions.length, total: options.length }) }}</span>
+          <span v-if="userIsSearching && searchQuery" class="text-sky-400 truncate max-w-[150px]">{{ t('Filtro: "{query}"', { query: searchQuery }) }}</span>
         </div>
 
         <!-- Options list -->
@@ -87,14 +87,14 @@
 
           <!-- Empty list state -->
           <div v-if="filteredOptions.length === 0" class="px-3 py-4 text-center text-xs text-slate-500 font-mono">
-            <div>{{ emptyText }}</div>
+            <div>{{ emptyText || t('No se encontraron bases de datos') }}</div>
             <div v-if="allowCustom && searchQuery" class="mt-2">
               <button
                 @click="selectOption(searchQuery)"
                 type="button"
                 class="px-2.5 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 rounded text-xs cursor-pointer border border-sky-500/30 transition"
               >
-                Usar "{{ searchQuery }}"
+                {{ t('Usar "{value}"', { value: searchQuery }) }}
               </button>
             </div>
           </div>
@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { ChevronDown, Check, X } from 'lucide-vue-next';
+import { t } from '../i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -118,10 +119,9 @@ const props = withDefaults(
     emptyText?: string;
   }>(),
   {
-    placeholder: 'Buscar o escribir base de datos...',
     disabled: false,
     allowCustom: true,
-    emptyText: 'No se encontraron bases de datos'
+    emptyText: undefined
   }
 );
 

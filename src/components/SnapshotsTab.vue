@@ -5,7 +5,7 @@
       <div>
         <div class="flex items-center gap-2">
           <Archive class="w-5 h-5 text-sky-400" />
-          <h2 class="text-base font-semibold text-white">Snapshots & Backups Rápidos</h2>
+          <h2 class="text-base font-semibold text-white">{{ t('Snapshots & Backups Rápidos') }}</h2>
           <span
             v-if="companionActive"
             class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1"
@@ -16,11 +16,11 @@
             v-else
             class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20"
           >
-            Modo Nativo
+            {{ t('Modo Nativo') }}
           </span>
         </div>
         <p class="text-xs text-slate-400 mt-1">
-          Respaldos instantáneos al vuelo con compresión Zstandard / Gzip antes de migraciones o cambios destructivos, con restauración protegida en 1 clic.
+          {{ t('Respaldos instantáneos al vuelo con compresión Zstandard / Gzip antes de migraciones o cambios destructivos, con restauración protegida en 1 clic.') }}
         </p>
       </div>
 
@@ -29,10 +29,10 @@
           @click="loadSnapshots"
           :disabled="loading"
           class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center gap-1.5 transition cursor-pointer border border-white/[0.08]"
-          title="Refrescar lista de snapshots"
+          :title="t('Refrescar lista de snapshots')"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="loading ? 'animate-spin' : ''" />
-          <span>Actualizar</span>
+          <span>{{ t('Actualizar') }}</span>
         </button>
 
         <button
@@ -41,7 +41,7 @@
           class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] text-xs font-medium rounded-lg flex items-center gap-2 shadow-sm transition cursor-pointer active:scale-[0.98]"
         >
           <Archive class="w-3.5 h-3.5" :class="creating ? 'animate-pulse' : ''" />
-          <span>{{ creating ? 'Creando Snapshot...' : 'Tomar Snapshot Rápido' }}</span>
+          <span>{{ creating ? t('Creando Snapshot...') : t('Tomar Snapshot Rápido') }}</span>
         </button>
       </div>
     </div>
@@ -50,24 +50,24 @@
     <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-4 shadow-sm">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
         <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">Base de Datos a Respaldar</label>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">{{ t('Base de Datos a Respaldar') }}</label>
           <SearchableSelect
             v-model="selectedDb"
             :options="databases"
             :allow-custom="false"
-            placeholder="Selecciona una base de datos..."
+            :placeholder="t('Selecciona una base de datos...')"
           />
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">Método de Compresión</label>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">{{ t('Método de Compresión') }}</label>
           <select
             v-model="compressionFormat"
             class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
           >
-            <option value="zstd">Zstandard (.sql.zst) - Máxima velocidad y ratio</option>
-            <option value="gzip">Gzip (.sql.gz) - Estándar universal</option>
-            <option value="none">Sin compresión (.sql) - Texto plano</option>
+            <option value="zstd">{{ t('Zstandard (.sql.zst) - Máxima velocidad y ratio') }}</option>
+            <option value="gzip">{{ t('Gzip (.sql.gz) - Estándar universal') }}</option>
+            <option value="none">{{ t('Sin compresión (.sql) - Texto plano') }}</option>
           </select>
         </div>
 
@@ -78,7 +78,7 @@
           </div>
           <div class="px-3.5 py-2 rounded-lg bg-slate-950/70 border border-white/[0.06] text-center min-w-[100px]">
             <div class="text-lg font-bold text-emerald-400 font-mono">{{ formatBytes(totalBytes) }}</div>
-            <div class="text-[10px] text-slate-400 uppercase font-medium">Espacio en Disco</div>
+            <div class="text-[10px] text-slate-400 uppercase font-medium">{{ t('Espacio en Disco') }}</div>
           </div>
         </div>
       </div>
@@ -97,16 +97,16 @@
           <input
             v-model="searchFilter"
             type="text"
-            placeholder="Filtrar por base de datos o archivo..."
+            :placeholder="t('Filtrar por base de datos o archivo...')"
             class="w-64 bg-slate-900 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
           />
           <span class="text-xs text-slate-500 font-mono">
-            Mostrando {{ filteredSnapshots.length }} de {{ snapshots.length }}
+            {{ t('Mostrando {shown} de {total}', { shown: filteredSnapshots.length, total: snapshots.length }) }}
           </span>
         </div>
 
         <span v-if="backupDirectory" class="text-[11px] text-slate-500 font-mono hidden sm:inline truncate max-w-sm" :title="backupDirectory">
-          Carpeta: {{ backupDirectory }}
+          {{ t('Carpeta: {dir}', { dir: backupDirectory }) }}
         </span>
       </div>
 
@@ -115,12 +115,12 @@
         <table class="w-full text-xs text-left font-mono">
           <thead class="bg-slate-950/80 text-slate-400 uppercase text-[10px] border-b border-white/[0.06]">
             <tr>
-              <th class="p-3">Base de Datos</th>
-              <th class="p-3">Archivo</th>
-              <th class="p-3">Formato</th>
-              <th class="p-3">Tamaño</th>
-              <th class="p-3">Fecha de Creación</th>
-              <th class="p-3 text-right">Acciones</th>
+              <th class="p-3">{{ t('Base de Datos') }}</th>
+              <th class="p-3">{{ t('Archivo') }}</th>
+              <th class="p-3">{{ t('Formato') }}</th>
+              <th class="p-3">{{ t('Tamaño') }}</th>
+              <th class="p-3">{{ t('Fecha de Creación') }}</th>
+              <th class="p-3 text-right">{{ t('Acciones') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.04]">
@@ -159,16 +159,16 @@
                   <button
                     @click="openRestoreModal(s)"
                     class="px-2.5 py-1 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/30 rounded text-[11px] font-medium transition cursor-pointer flex items-center gap-1"
-                    title="Restaurar este snapshot en una base de datos"
+                    :title="t('Restaurar este snapshot en una base de datos')"
                   >
                     <RotateCcw class="w-3 h-3" />
-                    <span>Restaurar</span>
+                    <span>{{ t('Restaurar') }}</span>
                   </button>
 
                   <button
                     @click="handleDeleteSnapshot(s)"
                     class="p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded transition cursor-pointer"
-                    title="Eliminar snapshot"
+                    :title="t('Eliminar snapshot')"
                   >
                     <Trash2 class="w-3.5 h-3.5" />
                   </button>
@@ -182,8 +182,8 @@
       <!-- Empty State -->
       <div v-else class="p-12 text-center bg-slate-900/30 rounded-xl border border-dashed border-white/[0.08] space-y-2">
         <Archive class="w-8 h-8 text-slate-600 mx-auto" />
-        <p class="text-xs text-slate-400">No hay snapshots disponibles en la carpeta de trabajo.</p>
-        <p class="text-[11px] text-slate-500">Selecciona una base de datos y pulsa "Tomar Snapshot Rápido" para generar tu primer respaldo comprimido.</p>
+        <p class="text-xs text-slate-400">{{ t('No hay snapshots disponibles en la carpeta de trabajo.') }}</p>
+        <p class="text-[11px] text-slate-500">{{ t('Selecciona una base de datos y pulsa "Tomar Snapshot Rápido" para generar tu primer respaldo comprimido.') }}</p>
       </div>
     </div>
 
@@ -195,25 +195,25 @@
       <div class="bg-slate-900 border border-white/[0.1] rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
         <div class="flex items-center gap-2.5 text-amber-400">
           <AlertTriangle class="w-5 h-5 shrink-0" />
-          <h3 class="text-sm font-semibold text-white">Confirmar Restauración de Snapshot</h3>
+          <h3 class="text-sm font-semibold text-white">{{ t('Confirmar Restauración de Snapshot') }}</h3>
         </div>
 
         <div class="space-y-2 text-xs text-slate-300">
           <p>
-            Vas a restaurar el snapshot <strong class="text-white font-mono">{{ activeSnapshot?.filename }}</strong>.
+            {{ t('Vas a restaurar el snapshot') }} <strong class="text-white font-mono">{{ activeSnapshot?.filename }}</strong>.
           </p>
           <div class="p-3 bg-red-950/30 border border-red-500/20 rounded-lg text-red-300 text-[11px] leading-relaxed">
-            ⚠️ <strong>Precaución:</strong> Esta acción importará las tablas y datos del snapshot en la base de datos destino, sobreescribiendo los registros existentes.
+            ⚠️ <strong>{{ t('Precaución:') }}</strong> {{ t('Esta acción importará las tablas y datos del snapshot en la base de datos destino, sobreescribiendo los registros existentes.') }}
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">Base de Datos Destino</label>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">{{ t('Base de Datos Destino') }}</label>
           <SearchableSelect
             v-model="restoreTargetDb"
             :options="databases"
             :allow-custom="true"
-            placeholder="Selecciona o escribe la BD destino..."
+            :placeholder="t('Selecciona o escribe la BD destino...')"
           />
         </div>
 
@@ -223,7 +223,7 @@
             :disabled="restoring"
             class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition cursor-pointer"
           >
-            Cancelar
+            {{ t('Cancelar') }}
           </button>
           <button
             @click="executeRestore"
@@ -231,7 +231,7 @@
             class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-[var(--bks-on-accent)] rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
           >
             <RefreshCw v-if="restoring" class="w-3 h-3 animate-spin" />
-            <span>{{ restoring ? 'Restaurando...' : 'Confirmar y Restaurar' }}</span>
+            <span>{{ restoring ? t('Restaurando...') : t('Confirmar y Restaurar') }}</span>
           </button>
         </div>
       </div>
@@ -251,6 +251,7 @@ import {
   Zap
 } from 'lucide-vue-next';
 import SearchableSelect from './SearchableSelect.vue';
+import { t } from '../i18n';
 import {
   fetchSnapshots,
   createSnapshot,
@@ -326,12 +327,12 @@ async function loadSnapshots() {
 
 async function handleCreateSnapshot() {
   if (!selectedDb.value) {
-    showNotification('Selecciona una base de datos primero.', 'warning');
+    showNotification(t('Selecciona una base de datos primero.'), 'warning');
     return;
   }
 
   creating.value = true;
-  statusMessage.value = `Tomando snapshot de ${selectedDb.value}...`;
+  statusMessage.value = t('Tomando snapshot de {db}...', { db: selectedDb.value });
 
   try {
     if (companionActive.value) {
@@ -343,10 +344,10 @@ async function handleCreateSnapshot() {
       });
 
       if (res.ok && res.snapshot) {
-        showNotification(`✔ Snapshot creado: ${res.snapshot.filename}`, 'success');
+        showNotification(t('✔ Snapshot creado: {filename}', { filename: res.snapshot.filename }), 'success');
         await loadSnapshots();
       } else {
-        throw new Error(res.error || 'Error al generar snapshot.');
+        throw new Error(res.error || t('Error al generar snapshot.'));
       }
     } else {
       // Standalone native mode fallback
@@ -354,11 +355,11 @@ async function handleCreateSnapshot() {
         statusMessage.value = msg;
       });
       if (ok) {
-        showNotification(`✔ Snapshot nativo de ${selectedDb.value} completado.`, 'success');
+        showNotification(t('✔ Snapshot nativo de {db} completado.', { db: selectedDb.value }), 'success');
       }
     }
   } catch (err: any) {
-    showNotification(`Error: ${err.message}`, 'error');
+    showNotification(t('Error: {message}', { message: err.message }), 'error');
   } finally {
     creating.value = false;
     statusMessage.value = '';
@@ -375,7 +376,7 @@ async function executeRestore() {
   if (!activeSnapshot.value || !restoreTargetDb.value) return;
 
   restoring.value = true;
-  statusMessage.value = `Restaurando ${activeSnapshot.value.filename} en ${restoreTargetDb.value}...`;
+  statusMessage.value = t('Restaurando {filename} en {db}...', { filename: activeSnapshot.value.filename, db: restoreTargetDb.value });
 
   try {
     const current = await fetchCurrentConnection();
@@ -386,13 +387,13 @@ async function executeRestore() {
     });
 
     if (res.ok) {
-      showNotification(`✔ ${res.message || 'Restauración completada con éxito.'}`, 'success');
+      showNotification(`✔ ${res.message || t('Restauración completada con éxito.')}`, 'success');
       showRestoreModal.value = false;
     } else {
-      throw new Error(res.error || 'Error al restaurar snapshot.');
+      throw new Error(res.error || t('Error al restaurar snapshot.'));
     }
   } catch (err: any) {
-    showNotification(`Error en restauración: ${err.message}`, 'error');
+    showNotification(t('Error en restauración: {message}', { message: err.message }), 'error');
   } finally {
     restoring.value = false;
     statusMessage.value = '';
@@ -401,21 +402,21 @@ async function executeRestore() {
 
 async function handleDeleteSnapshot(s: SnapshotInfo) {
   const confirmed = await confirmAction(
-    `¿Seguro que deseas eliminar el snapshot ${s.filename}? Esta acción no se puede deshacer.`,
-    'Eliminar Snapshot'
+    t('¿Seguro que deseas eliminar el snapshot {filename}? Esta acción no se puede deshacer.', { filename: s.filename }),
+    t('Eliminar Snapshot')
   );
   if (!confirmed) return;
 
   try {
     const res = await deleteSnapshot(s.filename);
     if (res.ok) {
-      showNotification(`✔ Snapshot ${s.filename} eliminado.`, 'success');
+      showNotification(t('✔ Snapshot {filename} eliminado.', { filename: s.filename }), 'success');
       await loadSnapshots();
     } else {
-      throw new Error(res.error || 'No se pudo eliminar el snapshot.');
+      throw new Error(res.error || t('No se pudo eliminar el snapshot.'));
     }
   } catch (err: any) {
-    showNotification(`Error: ${err.message}`, 'error');
+    showNotification(t('Error: {message}', { message: err.message }), 'error');
   }
 }
 

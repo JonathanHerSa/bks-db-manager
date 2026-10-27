@@ -2,7 +2,7 @@
   <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-3">
     <div class="flex items-start gap-2">
       <AlertTriangle class="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-      <span>El Companion Daemon no responde en el puerto 58765<template v-if="reason">, así que {{ reason }}</template>.</span>
+      <span>{{ reason ? t('El Companion Daemon no responde en el puerto 58765, así que {reason}.', { reason }) : t('El Companion Daemon no responde en el puerto 58765.') }}</span>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
@@ -10,19 +10,19 @@
         @click="handleDownload"
         class="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-100 rounded-md border border-sky-500/40 text-xs font-medium transition cursor-pointer flex items-center gap-1.5"
       >
-        <Download class="w-3.5 h-3.5" /> Descargar Companion
+        <Download class="w-3.5 h-3.5" /> {{ t('Descargar Companion') }}
       </button>
       <button
         @click="$emit('retry')"
         class="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 rounded-md border border-amber-500/40 text-xs font-medium transition cursor-pointer"
       >
-        Reintentar
+        {{ t('Reintentar') }}
       </button>
       <button
         @click="showOtherPlatforms = !showOtherPlatforms"
         class="text-amber-300/80 hover:text-amber-200 underline underline-offset-2 cursor-pointer"
       >
-        ¿Otro sistema operativo?
+        {{ t('¿Otro sistema operativo?') }}
       </button>
     </div>
 
@@ -38,14 +38,15 @@
     </div>
 
     <p class="text-amber-300/70 text-[11px]">
-      ¿Ya eres desarrollador? <code>npm run daemon:install</code> también funciona.
-      <a href="#" @click.prevent="openDocs" class="underline underline-offset-2 hover:text-amber-200">Cómo instalarlo</a>
+      {{ t('¿Ya eres desarrollador? {code} también funciona.', { code: 'npm run daemon:install' }) }}
+      <a href="#" @click.prevent="openDocs" class="underline underline-offset-2 hover:text-amber-200">{{ t('Cómo instalarlo') }}</a>
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { t } from '../i18n';
 import { AlertTriangle, Download } from 'lucide-vue-next';
 import {
   detectPlatform,

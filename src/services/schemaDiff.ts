@@ -1,4 +1,5 @@
 import { isSafeIdentifier } from './beekeeper';
+import { t } from '../i18n';
 
 export interface ColumnMeta {
   table: string;
@@ -117,7 +118,7 @@ export function generateDdlMigration(
   }
 
   if (sql.length === 0) {
-    return '-- Los esquemas son idénticos. No se requieren cambios estructurales.';
+    return t('-- Los esquemas son idénticos. No se requieren cambios estructurales.');
   }
 
   return sql.join('\n');

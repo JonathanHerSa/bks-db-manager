@@ -15,7 +15,7 @@
                 v{{ pkg.version }}
               </span>
             </div>
-            <p class="text-[11px] text-slate-400">Toolkit avanzado para sincronización, clonado y generación de datos</p>
+            <p class="text-[11px] text-slate-400">{{ t('Toolkit avanzado para sincronización, clonado y generación de datos') }}</p>
           </div>
         </div>
 
@@ -23,11 +23,25 @@
         <div class="flex items-center gap-3">
           <div class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-white/[0.08] text-xs">
             <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
-            <span class="text-slate-400 text-[11px]">Conexión Activa:</span>
-            <span class="font-medium text-slate-200">{{ currentConn?.connectionName || 'Detectando...' }}</span>
+            <span class="text-slate-400 text-[11px]">{{ t('Conexión Activa:') }}</span>
+            <span class="font-medium text-slate-200">{{ currentConn?.connectionName || t('Detectando...') }}</span>
             <span v-if="currentConn?.databaseName" class="font-mono text-sky-400 text-[11px]">
               ({{ currentConn.databaseName }})
             </span>
+          </div>
+
+          <!-- Language switcher -->
+          <div class="flex items-center rounded-lg border border-white/[0.08] overflow-hidden text-[10px] font-mono">
+            <button
+              v-for="option in locales"
+              :key="option"
+              @click="setLocale(option)"
+              :class="locale === option ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'"
+              class="px-2 py-1 transition cursor-pointer uppercase"
+              :title="option === 'es' ? 'Español' : 'English'"
+            >
+              {{ option }}
+            </button>
           </div>
         </div>
       </div>
@@ -47,7 +61,7 @@
             class="px-3 py-1.5 text-xs font-medium border rounded-lg flex items-center gap-2 transition cursor-pointer my-1.5 whitespace-nowrap"
           >
             <component :is="tab.icon" class="w-4 h-4" />
-            <span>{{ tab.label }}</span>
+            <span>{{ t(tab.labelKey) }}</span>
           </button>
         </nav>
       </div>
@@ -67,7 +81,7 @@
     <!-- Footer -->
     <footer class="border-t border-white/[0.06] bg-slate-950/40 py-3 mt-auto">
       <div class="max-w-7xl mx-auto px-6 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-        <span>DB Manager Pro para Beekeeper Studio • GPLv3</span>
+        <span>{{ t('DB Manager Pro para Beekeeper Studio • GPLv3') }}</span>
         <span>Streaming Pipes • Zero Temp Files</span>
       </div>
     </footer>
@@ -75,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, type Component } from 'vue';
 import {
   Database,
   Archive,
@@ -93,6 +107,7 @@ import {
   type ConnectionData
 } from './services/beekeeper';
 import pkg from '../package.json';
+import { t, locale, setLocale, type Locale, type MessageKey } from './i18n';
 
 import SnapshotsTab from './components/SnapshotsTab.vue';
 import CloneStreamTab from './components/CloneStreamTab.vue';
@@ -107,14 +122,16 @@ type TabType = 'snapshots' | 'clone' | 'diff' | 'health' | 'mock' | 'docs' | 'di
 const activeTab = ref<TabType>('clone');
 const initialTable = ref<string | null>(null);
 
-const tabs = [
-  { id: 'snapshots' as TabType, label: 'Snapshots & Backups', icon: Archive },
-  { id: 'clone' as TabType, label: 'Clonado Stream (A ➔ B)', icon: RefreshCw },
-  { id: 'diff' as TabType, label: 'Schema Diff & Migraciones', icon: GitCompare },
-  { id: 'health' as TabType, label: 'Salud & Rendimiento', icon: Activity },
-  { id: 'mock' as TabType, label: 'Mock Data Generator', icon: Sparkles },
-  { id: 'docs' as TabType, label: 'Diccionario de Datos', icon: BookOpen },
-  { id: 'discovery' as TabType, label: 'Auto-Discovery (Docker & .env)', icon: Container }
+const locales: Locale[] = ['es', 'en'];
+
+const tabs: Array<{ id: TabType; labelKey: MessageKey; icon: Component }> = [
+  { id: 'snapshots', labelKey: 'Snapshots & Backups', icon: Archive },
+  { id: 'clone', labelKey: 'Clonado Stream (A ➔ B)', icon: RefreshCw },
+  { id: 'diff', labelKey: 'Schema Diff & Migraciones', icon: GitCompare },
+  { id: 'health', labelKey: 'Salud & Rendimiento', icon: Activity },
+  { id: 'mock', labelKey: 'Mock Data Generator', icon: Sparkles },
+  { id: 'docs', labelKey: 'Diccionario de Datos', icon: BookOpen },
+  { id: 'discovery', labelKey: 'Auto-Discovery (Docker & .env)', icon: Container }
 ];
 
 const currentConn = ref<ConnectionData | null>(null);

@@ -6,6 +6,7 @@ import {
   isSafeIdentifier
 } from './beekeeper';
 import { checkCompanionStatus as checkCompanionStatusBase } from './companion';
+import { t } from '../i18n';
 
 const COMPANION_URL = 'http://127.0.0.1:58765';
 
@@ -143,7 +144,7 @@ export async function createNativeSnapshot(
   onProgress?: (msg: string) => void
 ): Promise<boolean> {
   if (!isSafeIdentifier(database)) {
-    showNotification('Nombre de base de datos inválido.', 'error');
+    showNotification(t('Nombre de base de datos inválido.'), 'error');
     return false;
   }
 

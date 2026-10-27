@@ -1,9 +1,9 @@
 {
   "id": "t3zca-db-manager",
   "name": "DB Manager Pro",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "minAppVersion": "5.4.0",
-  "description": "Live stream cloning (A -> B), smart sanitization (strip DEFINER), schema diff, docker & .env discovery, and mock data generator.",
+  "description": "Live stream cloning (A -> B), smart sanitization (strip DEFINER), schema diff, health auditor, mock data generator, data dictionary, and Docker/.env auto-discovery.",
   "author": {
     "name": "T3zcaDev",
     "url": "https://github.com/JonathanHerSa"
@@ -28,31 +28,31 @@
       },
       {
         "command": "open-db-manager-clone",
-        "name": "DB Manager: Clonado Stream (A ➔ B)",
+        "name": "DB Manager: Stream Clone (A ➔ B)",
         "view": "t3zca-db-manager",
         "placement": "menubar.tools"
       },
       {
         "command": "open-db-manager-diff",
-        "name": "DB Manager: Schema Diff & Migraciones",
+        "name": "DB Manager: Schema Diff & Migrations",
         "view": "t3zca-db-manager",
         "placement": "menubar.tools"
       },
       {
         "command": "open-db-manager-health",
-        "name": "DB Manager: Auditor de Salud & Rendimiento",
+        "name": "DB Manager: Health & Performance Auditor",
         "view": "t3zca-db-manager",
         "placement": "menubar.tools"
       },
       {
         "command": "open-db-manager-mock",
-        "name": "DB Manager: Generador Mock Data",
+        "name": "DB Manager: Mock Data Generator",
         "view": "t3zca-db-manager",
         "placement": "menubar.tools"
       },
       {
         "command": "open-db-manager-docs",
-        "name": "DB Manager: Diccionario de Datos",
+        "name": "DB Manager: Data Dictionary",
         "view": "t3zca-db-manager",
         "placement": "menubar.tools"
       },
@@ -64,7 +64,7 @@
       },
       {
         "command": "open-db-manager-table",
-        "name": "DB Manager: Mock Data para esta tabla",
+        "name": "DB Manager: Mock Data for this table",
         "view": "t3zca-db-manager",
         "placement": "entity.table.context"
       }

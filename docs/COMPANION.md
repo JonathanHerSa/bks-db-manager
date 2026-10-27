@@ -1,25 +1,27 @@
-# DB Manager Companion — instalación del ejecutable nativo
+# DB Manager Companion — installing the native executable
 
-El plugin de Beekeeper Studio corre en un iframe sandboxeado sin acceso al sistema de archivos ni a procesos del sistema operativo. Para todo lo que necesita ese acceso — `mysqldump`/`pg_dump`, escanear contenedores Docker, leer archivos `.env` locales, comparar esquemas entre dos conexiones — el plugin habla por HTTP con un pequeño daemon local llamado **Companion**, que solo escucha en `127.0.0.1:58765` (nunca sale de tu equipo).
+**English** · [Español](./COMPANION.es.md)
 
-Este documento es para quien instaló el plugin desde el marketplace de Beekeeper Studio y necesita el Companion para usar Clonado Stream, Auto-Discovery o Schema Diff. Si clonaste el repositorio para desarrollar, no necesitas nada de esto — `npm install` ya lo configura por ti (ver el README, "Opción B").
+The Beekeeper Studio plugin runs in a sandboxed iframe with no access to the filesystem or OS processes. For everything that needs that access — `mysqldump`/`pg_dump`, scanning Docker containers, reading local `.env` files, comparing schemas between two connections — the plugin talks over HTTP to a small local daemon called **Companion**, which only listens on `127.0.0.1:58765` (it never leaves your machine).
 
-## 1. Descarga el ejecutable de tu sistema
+This document is for anyone who installed the plugin from the Beekeeper Studio marketplace and needs the Companion for Stream Clone, Auto-Discovery or Schema Diff. If you cloned the repository for development, you don't need any of this — `npm install` already sets it up for you (see the README, "Option B").
 
-Ve a la [página de releases](https://github.com/JonathanHerSa/bks-db-manager/releases/latest) y descarga el archivo de tu sistema operativo, o usa el botón "Descargar Companion" que aparece dentro del plugin cuando el daemon no responde (detecta tu sistema automáticamente):
+## 1. Download the executable for your system
 
-| Sistema | Archivo |
+Go to the [releases page](https://github.com/JonathanHerSa/bks-db-manager/releases/latest) and download the file for your operating system, or use the "Download Companion" button shown inside the plugin when the daemon is not responding (it detects your system automatically):
+
+| System | File |
 |---|---|
 | Linux (x64) | `bks-db-manager-companion-linux-x64.tar.gz` |
 | Linux (ARM64) | `bks-db-manager-companion-linux-arm64.tar.gz` |
 | macOS (Apple Silicon) | `bks-db-manager-companion-darwin-arm64.tar.gz` |
 | Windows (x64) | `bks-db-manager-companion-win-x64.zip` |
 
-> **macOS Intel (x64) todavía no está disponible.** Los binarios generados con `node --build-sea` fallan (segmentation fault) en cualquier Mac Intel — es un bug abierto de Node.js ([nodejs/node#62893](https://github.com/nodejs/node/issues/62893)), confirmado en este proyecto en tres corridas distintas de CI, no algo específico de este repositorio. Si tienes un Mac Intel, usa la Opción B del README (symlink + `npm install`) mientras tanto, o revisa si ese issue ya se resolvió.
+> **macOS Intel (x64) is not available yet.** Binaries built with `node --build-sea` crash (segmentation fault) on every Intel Mac — it is an open Node.js bug ([nodejs/node#62893](https://github.com/nodejs/node/issues/62893)), reproduced in this project across three separate CI runs, so it is not specific to this repository. If you are on an Intel Mac, use Option B from the README (symlink + `npm install`) in the meantime, or check whether that issue has been fixed.
 
-## 2. Verifica el checksum (opcional pero recomendado)
+## 2. Verify the checksum (optional but recommended)
 
-Cada archivo tiene un `.sha256` junto a él en la misma release.
+Every archive has a `.sha256` file next to it in the same release.
 
 ```bash
 # Linux/macOS
@@ -29,74 +31,74 @@ sha256sum -c bks-db-manager-companion-linux-x64.tar.gz.sha256
 Get-FileHash .\bks-db-manager-companion-win-x64.zip -Algorithm SHA256
 ```
 
-## 3. Descomprime y ejecútalo (doble clic)
+## 3. Extract and run it (double click)
 
-Descomprime el archivo descargado y ejecuta el binario (`bks-db-manager-companion` o `.exe` en Windows) con doble clic. La primera vez:
+Extract the downloaded archive and run the binary (`bks-db-manager-companion`, or `.exe` on Windows) with a double click. The first time:
 
-- Se copia a una ubicación permanente fuera de tu carpeta de Descargas, así que puedes borrar el archivo original después.
-- Se registra para arrancar solo con tu sesión (no necesitas volver a hacer esto nunca).
-- Arranca inmediatamente.
+- It copies itself to a permanent location outside your Downloads folder, so you can delete the original file afterwards.
+- It registers itself to start with your session (you never need to do this again).
+- It starts immediately.
 
-Puedes cerrar la ventana/consola que se abra en cuanto confirme que quedó instalado — el daemon sigue corriendo en segundo plano.
+You can close the window/console that opens as soon as it confirms it was installed — the daemon keeps running in the background.
 
-### ⚠️ El instalador no está firmado (todavía)
+### ⚠️ The installer is not signed (yet)
 
-Firmar código para Windows y notarizar para macOS tiene un costo recurrente (cuenta de desarrollador de Apple, certificado de firma de Windows) que este proyecto no ha asumido todavía. Eso significa que el sistema operativo va a advertirte antes de dejarte ejecutar el binario la primera vez — es la advertencia estándar para cualquier programa nuevo sin firma, no un indicio de que algo esté mal (puedes verificar el checksum del paso 2 si quieres confirmarlo tú mismo).
+Code signing for Windows and notarization for macOS have a recurring cost (Apple developer account, Windows signing certificate) that this project has not taken on yet. That means the OS will warn you before letting you run the binary the first time — it is the standard warning for any new unsigned program, not a sign that something is wrong (you can verify the checksum from step 2 yourself if you want to be sure).
 
 **Windows (SmartScreen):**
-1. Verás "Windows protegió su PC". Haz clic en **"Más información"**.
-2. Aparecerá un botón **"Ejecutar de todas formas"** — haz clic ahí.
+1. You will see "Windows protected your PC". Click **"More info"**.
+2. A **"Run anyway"** button appears — click it.
 
 **macOS (Gatekeeper):**
-1. Verás que macOS no puede abrir el archivo porque "no se puede verificar el desarrollador".
-2. Haz **clic derecho** (o Control+clic) sobre el archivo ➔ **"Abrir"** ➔ confirma en el diálogo que aparece.
-3. Si sigue sin abrir, ejecuta en una terminal: `xattr -d com.apple.quarantine ./bks-db-manager-companion` y vuelve a intentar.
+1. macOS will say it cannot open the file because the developer "cannot be verified".
+2. **Right-click** (or Control-click) the file ➔ **"Open"** ➔ confirm in the dialog.
+3. If it still won't open, run this in a terminal: `xattr -d com.apple.quarantine ./bks-db-manager-companion` and try again.
 
-**Linux:** no hay advertencia del sistema, pero asegúrate de darle permisos de ejecución si tu gestor de archivos no lo hizo automáticamente: `chmod +x ./bks-db-manager-companion`.
+**Linux:** there is no system warning, but make sure the file is executable if your file manager did not do it automatically: `chmod +x ./bks-db-manager-companion`.
 
-## 4. Confirmar que quedó activo
+## 4. Confirm it is running
 
-Desde una terminal (o vuelve a ejecutar el binario, que detecta que ya está instalado y solo confirma):
+From a terminal (or run the binary again — it detects that it is already installed and just confirms):
 
 ```bash
 ./bks-db-manager-companion --status
 ```
 
-Deberías ver `Daemon: ACTIVE on http://127.0.0.1:58765`, junto con qué herramientas de base de datos detectó (`mysqldump`, `pg_dump`, `docker`, etc.) — si te falta alguna, esa es la única razón por la que una feature específica pueda seguir sin funcionar aunque el Companion esté activo.
+You should see `Daemon: ACTIVE on http://127.0.0.1:58765`, along with the database tools it detected (`mysqldump`, `pg_dump`, `docker`, etc.) — if one is missing, that is the only reason a specific feature may still not work even though the Companion is running.
 
-## 5. Desinstalar
+## 5. Uninstall
 
 ```bash
 ./bks-db-manager-companion --uninstall
 ```
 
-Detiene el servicio, lo desregistra del arranque automático y borra la copia instalada. No toca nada del propio Beekeeper Studio ni de tus bases de datos.
+It stops the service, unregisters it from auto-start and deletes the installed copy. It does not touch Beekeeper Studio itself or your databases.
 
-## Comandos disponibles
+## Available commands
 
 ```
-bks-db-manager-companion            Instala (primera vez) o verifica el servicio, y termina.
-bks-db-manager-companion --serve    Corre el daemon en primer plano (lo usa el servicio internamente).
-bks-db-manager-companion --install  (Re)instala y arranca el servicio en segundo plano.
-bks-db-manager-companion --uninstall  Detiene y elimina el servicio.
-bks-db-manager-companion --status   Muestra el estado de instalación, del daemon, y las herramientas detectadas.
-bks-db-manager-companion --version  Imprime la versión.
+bks-db-manager-companion            Installs (first run) or verifies the service, then exits.
+bks-db-manager-companion --serve    Runs the daemon in the foreground (used internally by the service).
+bks-db-manager-companion --install  (Re)installs and starts the background service.
+bks-db-manager-companion --uninstall  Stops and removes the service.
+bks-db-manager-companion --status   Shows install status, daemon status and detected tools.
+bks-db-manager-companion --version  Prints the version.
 ```
 
-## ¿Dónde quedan los archivos?
+## Where do the files live?
 
-| | Ruta |
+| | Path |
 |---|---|
-| Binario instalado (Linux) | `~/.local/share/bks-db-manager/bin/` |
-| Binario instalado (macOS) | `~/Library/Application Support/bks-db-manager/bin/` |
-| Binario instalado (Windows) | `%LOCALAPPDATA%\bks-db-manager\bin\` |
+| Installed binary (Linux) | `~/.local/share/bks-db-manager/bin/` |
+| Installed binary (macOS) | `~/Library/Application Support/bks-db-manager/bin/` |
+| Installed binary (Windows) | `%LOCALAPPDATA%\bks-db-manager\bin\` |
 | Logs (macOS) | `~/Library/Logs/bks-db-manager/` |
-| Registro del servicio (Linux) | `~/.config/systemd/user/bks-db-manager.service` |
-| Registro del servicio (macOS) | `~/Library/LaunchAgents/com.t3zcadev.bks-db-manager.plist` |
-| Registro del servicio (Windows) | Carpeta "Inicio" del menú de Windows |
+| Service registration (Linux) | `~/.config/systemd/user/bks-db-manager.service` |
+| Service registration (macOS) | `~/Library/LaunchAgents/com.t3zcadev.bks-db-manager.plist` |
+| Service registration (Windows) | Windows Start menu "Startup" folder |
 
-## Lo que el instalador NO instala
+## What the installer does NOT install
 
-El Companion **no incluye** `mysql`/`mysqldump`, `psql`/`pg_dump`, `mongodump`, `docker` ni `zstd` — son herramientas que el companion invoca, pero siguen siendo responsabilidad tuya tenerlas instaladas por separado (con tu gestor de paquetes de sistema: `brew`, `apt`, el instalador oficial de MySQL/PostgreSQL, Docker Desktop, etc.). Empaquetarlas dentro del instalador implicaría problemas de licencias y un tamaño de descarga mucho mayor, así que no forma parte de este proyecto.
+The Companion does **not** bundle `mysql`/`mysqldump`, `psql`/`pg_dump`, `mongodump`, `docker` or `zstd` — they are tools the companion invokes, but they remain your responsibility to install separately (with your system package manager: `brew`, `apt`, the official MySQL/PostgreSQL installer, Docker Desktop, etc.). Bundling them inside the installer would bring licensing issues and a much larger download, so it is out of scope for this project.
 
-Corre `bks-db-manager-companion --status` en cualquier momento para ver exactamente cuáles detecta en tu sistema.
+Run `bks-db-manager-companion --status` at any time to see exactly which ones it detects on your system.
