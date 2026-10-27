@@ -32,8 +32,16 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           ID="$(node -p "require('./manifest.json').id")"
           mkdir -p out
+          # `out/manifest.json` is published as its own release asset (the
+          # registry reads it to resolve the zip), but it must ALSO live at the
+          # root of the zip: `PluginFileManager.readManifests()` skips any
+          # installed folder without a manifest.json, which is why the flattened
+          # `dist/`-only zip used through v1.0.6 failed to install from the
+          # registry. The zip mirrors the official starter template
+          # (`zip -r dist/ manifest.json LICENSE README.md`) so that
+          # manifest `entry` paths such as `dist/index.html` keep resolving.
           cp manifest.json out/manifest.json
-          (cd dist && zip -r "../out/${ID}-${VERSION}.zip" .)
+          zip -r "out/${ID}-${VERSION}.zip" dist manifest.json LICENSE README.md
       - uses: actions/upload-artifact@v4
         with:
           name: plugin
