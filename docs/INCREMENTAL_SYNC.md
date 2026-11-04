@@ -80,6 +80,12 @@ applying a stale plan.
   changes, the manifest is invalidated and a full copy is performed.
 - **Partial manifest.** If a table fails, it is not marked as synced; the next
   run retries it. The rest continues.
+- **Sequential copy by default.** Full tables are copied one at a time
+  (`concurrency=1`) to avoid MySQL metadata-lock deadlocks between tables
+  related by foreign keys. The large table dominates the transfer time; the API
+  accepts a higher `concurrency` if needed.
+- **Connection drop.** If the SSE stream drops, the sync stops but the manifest
+  keeps the completed tables. Analyze again: only pending tables are copied.
 
 ## Engine matrix
 
@@ -135,5 +141,10 @@ anything and you must run a full clone again to reset the position.
   to disable triggers; if it fails, use the full clone.
 - In MongoDB, `collStats` is a heuristic: an update that does not change the
   size may not be detected. For critical collections, use a full copy.
+- **Generated columns:** with MySQL 8 as the destination and MariaDB's
+  `mysqldump` on the machine, tables with generated columns (for example Pulse:
+  `pulse_aggregates`, `pulse_entries`) fail with `ERROR 3105`. Those tables are
+  left pending and the rest continues; exclude them (the "Exclude Logs / Pulse
+  / Telemetry" button already filters them) or use MySQL's `mysqldump`.
 - SQL Server, ClickHouse and Redis do not have clone stream in this plugin yet;
   incremental mode is disabled for them.

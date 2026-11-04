@@ -1,6 +1,6 @@
 # 🦅 DB Manager Pro para Beekeeper Studio (`bks-db-manager`)
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.1-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
 ![Beekeeper Studio](https://img.shields.io/badge/beekeeper--studio-5.4%2B-38bdf8)
 

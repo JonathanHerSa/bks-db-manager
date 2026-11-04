@@ -82,6 +82,13 @@ origen se reemplazó, pide volver a analizar en vez de aplicar un plan viejo.
   completa.
 - **Manifest parcial.** Si una tabla falla, no se marca como sincronizada; la
   siguiente pasada la reintenta. Las demás continúan.
+- **Copia secuencial por defecto.** Las tablas completas se copian de una en una
+  (`concurrency=1`) para evitar deadlocks de metadata locks de MySQL entre
+  tablas relacionadas por claves foráneas. La tabla grande domina el tiempo; la
+  API acepta un `concurrency` mayor si se necesita.
+- **Corte de conexión.** Si el stream SSE se corta, la sync se detiene pero el
+  manifest conserva las tablas completadas. Vuelve a analizar: solo se copiarán
+  las tablas pendientes.
 
 ## Matriz de motores
 
@@ -139,5 +146,10 @@ corromper nada y hay que repetir el clon completo para reiniciar la posición.
   privilegios para deshabilitar triggers; si falla, usa el clonado completo.
 - En MongoDB, `collStats` es una heurística: una actualización que no cambia el
   tamaño puede no detectarse. Para colecciones críticas, usa copia completa.
+- **Columnas generadas:** con MySQL 8 como destino y el `mysqldump` de MariaDB
+  en el equipo, las tablas con columnas generadas (por ejemplo, Pulse:
+  `pulse_aggregates`, `pulse_entries`) fallan con `ERROR 3105`. Esas tablas
+  quedan pendientes y el resto continúa; exclúyelas (el botón "Excluir Logs /
+  Pulse / Telemetría" ya las filtra) o usa el `mysqldump` de MySQL.
 - SQL Server, ClickHouse y Redis no tienen clone stream en este plugin todavía;
   el modo incremental aparece deshabilitado para ellos.

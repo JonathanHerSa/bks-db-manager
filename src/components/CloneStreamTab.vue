@@ -1122,7 +1122,9 @@ function startIncrementalSync() {
       planId: syncPlanId.value,
       configHash: planConfigHash.value || undefined,
       maskData: maskData.value,
-      concurrency: 3,
+      // Sequential full-table copies avoid MySQL metadata-lock deadlocks
+      // between related tables; the large table dominates the total time.
+      concurrency: 1,
       // Counting both sides is an extra scan and can produce false failures
       // on a live source that changes during the copy; the dump/restore exit
       // code and stderr ERROR tracking are the primary correctness signals.

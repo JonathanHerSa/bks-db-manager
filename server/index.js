@@ -1018,7 +1018,12 @@ app.post('/api/clone/stream', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
 
   const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    // The client can disconnect mid-clone; writing after the response is
+    // closed must not throw and take the daemon down with it.
+    if (res.writableEnded || res.destroyed) return;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {}
   };
 
   sendEvent('log', { message: `Iniciando clonado en streaming: ${srcDb} (${srcHost}) -> ${dstDb} (${dstHost})` });
@@ -1518,7 +1523,7 @@ app.post('/api/clone/sync/plan', async (req, res) => {
 });
 
 app.post('/api/clone/sync/apply', async (req, res) => {
-  const { planId, configHash, maskData = false, concurrency = 3, verify = false } = req.body || {};
+  const { planId, configHash, maskData = false, concurrency = 1, verify = false } = req.body || {};
   const pending = pendingSyncPlans.get(planId);
   if (!pending) {
     return res.status(404).json({ error: 'El plan expiró o no existe. Vuelve a analizar los cambios.' });
@@ -1560,7 +1565,10 @@ app.post('/api/clone/sync/apply', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
 
   const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (res.writableEnded || res.destroyed) return;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {}
   };
 
   const controller = new AbortController();
@@ -1582,7 +1590,7 @@ app.post('/api/clone/sync/apply', async (req, res) => {
         key: pending.key,
         sendEvent,
         maskData: Boolean(maskData),
-        concurrency: Math.max(1, Math.min(8, Number(concurrency) || 3)),
+        concurrency: Math.max(1, Math.min(8, Number(concurrency) || 1)),
         verify: Boolean(verify),
         signal: controller.signal
       });

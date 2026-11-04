@@ -529,7 +529,10 @@ export function startSyncClone(
     })
     .catch((err) => {
       if (err.name !== 'AbortError' && !errorReported && !isCompleted) {
-        callbacks.onError(`Error de conexión con el motor o corte de red: ${err.message}`);
+        callbacks.onError(
+          `Error de conexión con el motor o corte de red: ${err.message}. ` +
+          'La sincronización se detuvo; vuelve a analizar y solo se copiarán las tablas pendientes.'
+        );
       }
     });
 

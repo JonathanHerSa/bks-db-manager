@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.1] - 2026-11-04
+
+### Fixed
+
+- Sequential full-table copies by default to avoid MySQL metadata-lock
+  deadlocks between related tables; failed copies are retried after a short
+  backoff.
+- Clear `ERROR 3105` message for generated columns (Pulse/telemetry) and leave
+  the table pending instead of failing the whole sync.
+- Guard SSE writes after a client disconnect; the daemon no longer risks
+  writing to a closed response.
+- The frontend now explains that an interrupted incremental sync is resumable
+  and only pending tables will be copied.
+
 ## [1.1.0] - 2026-11-04
 
 ### Added

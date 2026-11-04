@@ -1,7 +1,10 @@
 import { saveManifest } from './manifest.js';
 import { cleanStderr, createProgressTracker, createSanitizer } from './streams.js';
 
-const DEFAULT_CONCURRENCY = 3;
+// Sequential by default: concurrent DDL (DROP/CREATE per table) can deadlock
+// on MySQL metadata locks when tables are related by foreign keys. The big
+// table dominates the transfer time anyway, so reliability wins here.
+const DEFAULT_CONCURRENCY = 1;
 
 function newManifest(plan, previous) {
   const canReuse = Boolean(
@@ -195,9 +198,17 @@ export async function applySyncPlan({
   // failed midway may already have inserted some rows, so retrying it could
   // duplicate data. Those are left for the next sync's COUNT/MAX check.
   const failedFirstPass = [...resultByTable.values()].filter(
-    (result) => !result.ok && (result.action === 'full' || result.action === 'drop')
+    (result) =>
+      !result.ok &&
+      (result.action === 'full' || result.action === 'drop') &&
+      // Generated-column failures are deterministic (MariaDB mysqldump vs
+      // MySQL 8); retrying them only repeats the same error.
+      !String(result.error || '').includes('ERROR 3105')
   );
   if (failedFirstPass.length > 0 && !signal?.aborted) {
+    // Give InnoDB a moment to release metadata locks from a deadlock before
+    // retrying the failed tables sequentially.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     sendEvent('log', { message: `Reintentando ${failedFirstPass.length} tabla(s) con error...` });
     for (const failed of failedFirstPass) {
       const table = plan.tables.find((item) => item.name === failed.table);
@@ -301,6 +312,7 @@ function pipeProcesses(dump, restore, { textualDumpFormat, maskData, onBytes, si
   return new Promise((resolve, reject) => {
     let stderr = '';
     let realError = false;
+    let generatedColumnError = false;
     let settled = false;
 
     const cleanup = () => {
@@ -322,6 +334,11 @@ function pipeProcesses(dump, restore, { textualDumpFormat, maskData, onBytes, si
     const onStderr = (data) => {
       const message = data.toString();
       if (/\bERROR\b/.test(message)) realError = true;
+      // MySQL 8 rejects explicit values for generated columns. MariaDB's
+      // mysqldump includes them (MySQL's does not), so a MySQL 8 destination
+      // fails with 3105. Surface a concise, actionable error instead of the
+      // whole INSERT statement, and leave the table unsynced for the next run.
+      if (message.includes('ERROR 3105')) generatedColumnError = true;
       stderr += message;
     };
 
@@ -349,7 +366,12 @@ function pipeProcesses(dump, restore, { textualDumpFormat, maskData, onBytes, si
     let restoreCode = null;
     const maybeFinish = () => {
       if (dumpCode === null || restoreCode === null) return;
-      if (restoreCode === 0 && dumpCode === 0 && !realError) {
+      if (generatedColumnError) {
+        fail(new Error(
+          'Columna generada (ERROR 3105): el mysqldump del equipo incluye columnas generadas que MySQL 8 rechaza. ' +
+          'Excluye esta tabla (las de Pulse/telemetría no suelen necesitarse) o usa el mysqldump de MySQL.'
+        ));
+      } else if (restoreCode === 0 && dumpCode === 0 && !realError) {
         done();
       } else {
         fail(new Error(
