@@ -1,6 +1,6 @@
 # 🦅 DB Manager Pro para Beekeeper Studio (`bks-db-manager`)
 
-![Version](https://img.shields.io/badge/version-1.0.7-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
 ![Beekeeper Studio](https://img.shields.io/badge/beekeeper--studio-5.4%2B-38bdf8)
 
@@ -24,6 +24,7 @@ La interfaz del plugin está disponible en inglés y español; cambia de idioma 
    * Transfiere bases de datos completas entre servidores (Producción/Staging ➔ Local/Docker) en tiempo real mediante *pipes*, sin guardar archivos temporales en disco.
    * **Sanitización automática:** Remueve sentencias conflictivas (`DEFINER`, `USE`, `CREATE DATABASE`, `SQL_LOG_BIN`).
    * **Filtro de tablas y Data Masking:** Excluye tablas de telemetría y ofusca emails y datos sensibles al vuelo.
+   * **Modo incremental (solo cambios):** Compara fingerprints por tabla contra la última sincronización y copia solo lo que cambió. Las tablas marcadas *append-only* copian únicamente las filas nuevas. Pensado para bases grandes donde la segunda importación no debe repetir el 100%. Ver [docs/INCREMENTAL_SYNC.es.md](docs/INCREMENTAL_SYNC.es.md).
 
 3. **⚖️ Schema Diff V2 Multi-Motor & Migraciones:**
    * Soporte multi-motor para **MySQL / MariaDB** y **PostgreSQL**.

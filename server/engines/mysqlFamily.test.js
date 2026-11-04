@@ -151,6 +151,160 @@ describe('mysqlFamily.spawnDump / spawnRestore', () => {
   });
 });
 
+describe('mysqlFamily incremental sync primitives', () => {
+  test('getTableFingerprints uses Performance Schema counters instead of scanning rows', async () => {
+    execFile.mockImplementation((file, args, options, callback) => {
+      callback(
+        null,
+        'users\t11\t2026-11-04 10:00:00\t100\t80\t15\t5\n' +
+        'orders\t21\t2026-11-04 10:05:00\t200\t150\t30\t20\n',
+        ''
+      );
+    });
+
+    const result = await mysqlFamily.getTableFingerprints(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      ['users', 'orders']
+    );
+
+    expect(result.users.token).toBe('ps:100:80:15:5:11:2026-11-04 10:00:00');
+    expect(result.orders.token).toBe('ps:200:150:30:20:21:2026-11-04 10:05:00');
+    const [, args] = execFile.mock.calls[0];
+    expect(args[args.length - 1]).toContain('performance_schema.table_io_waits_summary_by_table');
+    expect(args[args.length - 1]).not.toContain('CHECKSUM TABLE');
+  });
+
+  test('getTableFingerprints falls back to InnoDB metadata when Performance Schema is off', async () => {
+    execFile.mockImplementation((file, args, options, callback) => {
+      const sql = String(args[args.length - 1]);
+      if (sql.includes('performance_schema')) return callback(new Error('denied'), '', 'denied');
+      if (sql.includes('mysql.innodb_table_stats')) {
+        return callback(null, 'users\t11\t10\t1024\t0\t2026-11-04 10:00:00\n', '');
+      }
+      return callback(new Error(`unexpected SQL: ${sql}`));
+    });
+
+    const result = await mysqlFamily.getTableFingerprints(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      ['users']
+    );
+
+    expect(result.users).toEqual({
+      token: 'meta:11:10:1024:0:2026-11-04 10:00:00',
+      rows: null
+    });
+    expect(
+      execFile.mock.calls.some(([, args]) => String(args[args.length - 1]).includes('CHECKSUM TABLE'))
+    ).toBe(false);
+  });
+
+  test('getTableFingerprints uses metadata for a table with no Performance Schema counter row', async () => {
+    execFile.mockImplementation((file, args, options, callback) => {
+      const sql = String(args[args.length - 1]);
+      if (sql.includes('performance_schema')) {
+        return callback(null, 'users\t11\t2026-11-04 10:00:00\tNULL\tNULL\tNULL\tNULL\n', '');
+      }
+      if (sql.includes('mysql.innodb_table_stats')) {
+        return callback(null, 'users\t11\t10\t1024\t0\t2026-11-04 10:00:00\n', '');
+      }
+      return callback(new Error(`unexpected SQL: ${sql}`));
+    });
+
+    const result = await mysqlFamily.getTableFingerprints(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      ['users']
+    );
+
+    expect(result.users.token).toBe('meta:11:10:1024:0:2026-11-04 10:00:00');
+  });
+
+  test('getTableChecksums is the explicit slow verification path', async () => {
+    execFile.mockImplementation((file, args, options, callback) => {
+      const sql = String(args[args.length - 1]);
+      if (sql.includes('CHECKSUM TABLE')) return callback(null, 'app_db.users\t123\n', '');
+      return callback(new Error(`unexpected SQL: ${sql}`));
+    });
+
+    const result = await mysqlFamily.getTableChecksums(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      ['users']
+    );
+
+    expect(result.users).toEqual({ token: '123', rows: null });
+  });
+
+  test('spawnTableDump dataOnly emits no DDL, no locks and a key range', () => {
+    mysqlFamily.spawnTableDump(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      { table: 'big', dataOnly: true, keyColumn: 'id', keyAfter: '100' }
+    );
+
+    const [bin, args, options] = spawn.mock.calls[0];
+    expect(bin).toBe('mysqldump');
+    expect(args).toContain('--no-create-info');
+    expect(args).toContain('--skip-add-locks');
+    expect(args).toContain('--where=`id` > 100');
+    expect(args).toContain('big');
+    expect(options.env.MYSQL_PWD).toBe('x');
+  });
+
+  test('spawnCdcReplay filters by database, skips GTIDs and dedupes the same file', () => {
+    mysqlFamily.spawnCdcReplay(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      {
+        from: { file: 'binlog.000001', position: 4 },
+        to: { file: 'binlog.000001', position: 120 },
+        binlogs: ['binlog.000001']
+      }
+    );
+
+    const [bin, args] = spawn.mock.calls[0];
+    expect(bin).toBe('mysqlbinlog');
+    expect(args).toContain('--database');
+    expect(args).toContain('app_db');
+    expect(args).toContain('--skip-gtids');
+    expect(args.filter((arg) => arg === 'binlog.000001')).toHaveLength(1);
+  });
+
+  test('spawnRestore omits --force in strict mode', () => {
+    mysqlFamily.spawnRestore(
+      { host: 'h', port: 3306, user: 'root', pass: 'x', database: 'app_db' },
+      { strict: true }
+    );
+
+    const [, args] = spawn.mock.calls[0];
+    expect(args).not.toContain('--force');
+  });
+
+  test('getCdcCapabilities reports the current binlog position', async () => {
+    execFile.mockImplementation((file, args, options, callback) => {
+      if (file === 'mysqlbinlog') {
+        return callback(null, 'mysqlbinlog  Ver 8.0.46 for Linux\n', '');
+      }
+      const sql = String(args[args.length - 1]);
+      if (sql.includes('SHOW VARIABLES')) {
+        return callback(null, 'log_bin\tON\nbinlog_format\tROW\nbinlog_row_image\tFULL\ngtid_mode\tON\nbinlog_expire_logs_seconds\t2592000\n', '');
+      }
+      if (sql.includes('SELECT VERSION()')) {
+        return callback(null, '8.0.46\n', '');
+      }
+      if (sql.includes('SHOW MASTER STATUS')) {
+        return callback(null, 'binlog.000001\t120\t\t\tuuid:1-2\n', '');
+      }
+      if (sql.includes('SHOW BINARY LOGS')) {
+        return callback(null, 'binlog.000001\t1000\t\n', '');
+      }
+      return callback(new Error(`unexpected SQL: ${sql}`));
+    });
+
+    const caps = await mysqlFamily.getCdcCapabilities({ host: 'h', port: 3306, user: 'root', pass: 'x' });
+
+    expect(caps.available).toBe(true);
+    expect(caps.position).toEqual({ file: 'binlog.000001', position: 120, gtid: 'uuid:1-2' });
+    expect(caps.binlogs).toEqual(['binlog.000001']);
+  });
+});
+
 describe('mysqlFamily flags', () => {
   test('declares clone-stream support and a textual dump format', () => {
     expect(mysqlFamily.supportsCloneStream).toBe(true);

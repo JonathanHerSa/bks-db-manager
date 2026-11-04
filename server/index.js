@@ -11,6 +11,9 @@ import { StringDecoder } from 'string_decoder';
 import { normalizeMotor, getDefaultPort, supportsCloneStream } from '../shared/dbEngines.js';
 import { getEngine } from './engines/index.js';
 import { escSqlStr } from './engines/escaping.js';
+import { buildSyncPlan } from './sync/planner.js';
+import { applySyncPlan } from './sync/apply.js';
+import { loadManifest, manifestKey, saveManifest } from './sync/manifest.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const execAsync = promisify(exec);
@@ -85,6 +88,10 @@ function sanitizeSecrets(str = '') {
 // SQL text or stack traces (which could contain credentials or leak internal paths).
 function safeErrorMessage(err, fallback = 'Error ejecutando la operación.') {
   if (!err) return fallback;
+  // Errors we raise ourselves carry a user-facing message that is safe to
+  // return verbatim (child-process errors do not: their message includes the
+  // command line, so those still go through stderr/sanitization below).
+  if (err.userMessage) return sanitizeSecrets(String(err.userMessage)).slice(0, 2000);
   const stderr = typeof err.stderr === 'string' ? err.stderr : (err.stderr ? err.stderr.toString() : '');
   const base = stderr && stderr.trim() ? stderr.trim() : fallback;
   return sanitizeSecrets(base).slice(0, 2000);
@@ -114,7 +121,7 @@ const BACKUP_DIR = getBackupDir();
 
 // 1. Health check & Tool verification (public, no auth required)
 app.get('/api/status', async (req, res) => {
-  const tools = ['mysql', 'mysqldump', 'psql', 'pg_dump', 'mongodump', 'zstd', 'docker', 'pv'];
+  const tools = ['mysql', 'mysqldump', 'mysqlbinlog', 'psql', 'pg_dump', 'mongodump', 'zstd', 'docker', 'pv'];
   const status = {};
   for (const tool of tools) {
     try {
@@ -124,7 +131,16 @@ app.get('/api/status', async (req, res) => {
       status[tool] = false;
     }
   }
-  res.json({ ok: true, version: COMPANION_VERSION, token: AUTH_TOKEN, tools: status });
+  res.json({
+    ok: true,
+    version: COMPANION_VERSION,
+    token: AUTH_TOKEN,
+    tools: status,
+    // Additive capability flags: the plugin uses these to detect an old
+    // companion daemon (e.g. one started before incremental sync existed)
+    // instead of failing later with an opaque HTML 404.
+    features: { incrementalSync: true, cdc: true }
+  });
 });
 
 function getKnownPasswords() {
@@ -912,15 +928,14 @@ app.post('/api/tables', async (req, res) => {
 app.post('/api/database/info', async (req, res) => {
   const { motor = 'mysql', host, port, user, pass, database, name } = req.body;
   const engine = getEngine(normalizeMotor(motor));
-  if (!engine) return res.json({ mb: 0, tables: 0, sqlMb: 0 });
+  if (!engine) return res.json({ mb: 0, tables: 0 });
   const rawPass = resolvePassword(host, port, user, pass, name);
   try {
     const { mb, tables } = await engine.getDatabaseInfo({ host, port, user, pass: rawPass, database });
     // Uncompressed SQL text is roughly 2.8x the binary on-disk footprint for JSON/text heavy DBs
-    const sqlMb = Math.round(mb * 2.8);
-    res.json({ mb, tables, sqlMb });
+    res.json({ mb, tables });
   } catch (err) {
-    res.json({ mb: 0, tables: 0, sqlMb: 0, error: safeErrorMessage(err, 'No se pudo obtener información de la base de datos.') });
+    res.json({ mb: 0, tables: 0, error: safeErrorMessage(err, 'No se pudo obtener información de la base de datos.') });
   }
 });
 
@@ -940,7 +955,7 @@ app.post('/api/schema/inspect', async (req, res) => {
 });
 
 // 7. Live Stream Cloning with Server-Sent Events (SSE) progress
-app.post('/api/clone/stream', (req, res) => {
+app.post('/api/clone/stream', async (req, res) => {
   let {
     srcHost, srcPort = 3306, srcUser, srcPass = '', srcDb,
     dstHost, dstPort = 3306, dstUser, dstPass = '', dstDb,
@@ -975,6 +990,28 @@ app.post('/api/clone/stream', (req, res) => {
 
   srcPass = resolvePassword(srcHost, srcPort, srcUser, srcPass);
   dstPass = resolvePassword(dstHost, dstPort, dstUser, dstPass);
+
+  // Best-effort CDC bootstrap: remember where the source binlog was when the
+  // full clone started, so the CDC mode can replay from there. Engines
+  // without CDC (or without permission to read the position) skip this.
+  const syncKey = manifestKey({ srcHost, srcPort, srcDb, dstHost, dstPort, dstDb });
+  let cdcStartPosition = null;
+  let sourceIdentity = null;
+  if (typeof engine.getServerIdentity === 'function') {
+    try {
+      sourceIdentity = await engine.getServerIdentity({
+        host: srcHost, port: srcPort, user: srcUser, pass: srcPass
+      });
+    } catch {}
+  }
+  if (typeof engine.getCdcCapabilities === 'function') {
+    try {
+      const cdc = await engine.getCdcCapabilities({
+        host: srcHost, port: srcPort, user: srcUser, pass: srcPass
+      });
+      if (cdc?.available && cdc.position) cdcStartPosition = cdc.position;
+    } catch {}
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1049,6 +1086,7 @@ app.post('/api/clone/stream', (req, res) => {
             chunk.includes('GTID_PURGED') ||
             chunk.includes('SQL_LOG_BIN') ||
             chunk.includes('CREATE DATABASE') ||
+            chunk.includes('transaction_timeout') ||
             chunk.includes('USE `');
           if (!hasKeyword) {
             return callback(null, chunk);
@@ -1066,6 +1104,8 @@ app.post('/api/clone/stream', (req, res) => {
         str = str.replace(/SET @@SESSION\.SQL_LOG_BIN[^;]+;/gmi, '');
         // Clean GTID_PURGED
         str = str.replace(/SET @@GLOBAL\.GTID_PURGED[^;]+;/gmi, '');
+        // pg_dump 17+ emits this setting; PostgreSQL <17 rejects it.
+        str = str.replace(/^SET\s+transaction_timeout\s*=\s*[^;]+;\s*$/gmi, '');
 
         if (maskData) {
           // Obfuscate emails: something@domain.com -> user_***@masked.local
@@ -1132,6 +1172,42 @@ app.post('/api/clone/stream', (req, res) => {
       const totalMb = (bytesTransferred / (1024 * 1024)).toFixed(2);
 
       if (isSuccess) {
+        // Persist the bootstrap manifest for the incremental/CDC modes. The
+        // full clone itself already copied every table, so only the source
+        // identity and the binlog position need to be remembered here.
+        try {
+          const existing = loadManifest(syncKey) || {};
+          const manifest = {
+            ...existing,
+            source: {
+              host: srcHost,
+              port: Number(srcPort) || 3306,
+              db: srcDb,
+              serverUuid: sourceIdentity?.serverUuid || null,
+              version: sourceIdentity?.version || null
+            },
+            dest: {
+              host: dstHost,
+              port: Number(dstPort) || 3306,
+              db: dstDb
+            },
+            tables: existing.tables || {},
+            status: 'ok',
+            lastFullAt: new Date().toISOString()
+          };
+          if (cdcStartPosition) {
+            manifest.cdc = {
+              position: cdcStartPosition,
+              updatedAt: new Date().toISOString()
+            };
+          } else {
+            delete manifest.cdc;
+          }
+          saveManifest(syncKey, manifest);
+        } catch {
+          // The clone itself succeeded; a manifest write failure only means
+          // the next incremental/CDC run starts from a full copy.
+        }
         sendEvent('complete', {
           message: `✔ Clonado completado con éxito: ${totalMb} MB en ${totalTime}s`,
           bytes: bytesTransferred,
@@ -1169,18 +1245,28 @@ app.post('/api/clone/stream', (req, res) => {
       .pipe(progressTracker)
       .pipe(dstProc.stdin);
 
-    dstProc.on('close', (code) => {
-      if (code === 0 && !dstHadRealError) {
+    // Wait for BOTH processes before deciding the outcome: a failing
+    // mysqldump can make `mysql` exit 0 with a truncated stream, which used
+    // to be reported as a successful clone.
+    let srcExitCode = null;
+    let dstExitCode = null;
+    const maybeFinish = () => {
+      if (srcExitCode === null || dstExitCode === null) return;
+      if (srcExitCode === 0 && dstExitCode === 0 && !dstHadRealError) {
         finish(true);
       } else {
         finish(false);
       }
+    };
+
+    dstProc.on('close', (code) => {
+      dstExitCode = code;
+      maybeFinish();
     });
 
     srcProc.on('close', (code) => {
-      if (code !== 0 && !hasFinished) {
-        finish(false);
-      }
+      srcExitCode = code;
+      maybeFinish();
     });
 
     srcProc.on('error', (err) => {
@@ -1191,7 +1277,10 @@ app.post('/api/clone/stream', (req, res) => {
       finish(false, `Error en proceso destino (mysql): ${err.message}`);
     });
 
-    req.on('close', () => {
+    // `res` (not `req`): see the apply endpoint above. Listening on the
+    // already-consumed request stream can abort the clone right after the
+    // body is parsed.
+    res.on('close', () => {
       if (!hasFinished) {
         hasFinished = true;
         clearInterval(progressInterval);
@@ -1208,6 +1297,317 @@ app.post('/api/clone/stream', (req, res) => {
      }
    }
   });
+});
+
+// ==========================================
+// 7b. Incremental clone: plan (dry-run) + apply
+// ==========================================
+
+const pendingSyncPlans = new Map();
+const PENDING_SYNC_TTL_MS = 10 * 60 * 1000;
+
+function badRequest(message) {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+}
+
+function buildSyncContext(body) {
+  const {
+    srcHost, srcPort = 3306, srcUser, srcPass = '', srcDb,
+    dstHost, dstPort = 3306, dstUser, dstPass = '', dstDb,
+    motor = 'mysql',
+    excludeTables = [],
+    appendOnlyTables = [],
+    forceFullTables = [],
+    forceFull = false,
+    mirror = false,
+    forceChecksums = false,
+    mode = 'incremental'
+  } = body || {};
+
+  const normMotor = normalizeMotor(motor);
+  if (!supportsCloneStream(normMotor)) {
+    throw badRequest(`Sincronización incremental no soportada para el motor "${motor}".`);
+  }
+  if (!srcDb || !isSafeDbName(srcDb)) throw badRequest('Base de datos origen inválida o requerida.');
+  if (!dstDb || !isSafeDbName(dstDb)) throw badRequest('Base de datos destino inválida o requerida.');
+  if (!Array.isArray(excludeTables) || !excludeTables.every((t) => isSafeDbName(t))) {
+    throw badRequest('Lista de tablas excluidas inválida.');
+  }
+  if (!Array.isArray(appendOnlyTables) || !appendOnlyTables.every((t) => isSafeDbName(t))) {
+    throw badRequest('Lista de tablas append-only inválida.');
+  }
+  if (!Array.isArray(forceFullTables) || !forceFullTables.every((t) => isSafeDbName(t))) {
+    throw badRequest('Lista de tablas forzadas a copia completa inválida.');
+  }
+  if (!srcHost || !dstHost || !srcUser || !dstUser) {
+    throw badRequest('Host y usuario de origen y destino son obligatorios.');
+  }
+  if (mode !== 'incremental' && mode !== 'cdc') {
+    throw badRequest('Modo de sincronización inválido.');
+  }
+
+  const engine = getEngine(normMotor);
+  const src = {
+    host: String(srcHost),
+    port: Number(srcPort) || getDefaultPort(normMotor) || 3306,
+    user: String(srcUser),
+    pass: resolvePassword(srcHost, srcPort, srcUser, srcPass),
+    database: srcDb
+  };
+  const dst = {
+    host: String(dstHost),
+    port: Number(dstPort) || getDefaultPort(normMotor) || 3306,
+    user: String(dstUser),
+    pass: resolvePassword(dstHost, dstPort, dstUser, dstPass),
+    database: dstDb
+  };
+  return {
+    engine,
+    src,
+    dst,
+    excludeTables,
+    appendOnlyTables,
+    forceFullTables,
+    forceFull: Boolean(forceFull),
+    mirror: Boolean(mirror),
+    forceChecksums: Boolean(forceChecksums),
+    mode,
+    normMotor
+  };
+}
+
+function prunePendingSyncPlans() {
+  const now = Date.now();
+  for (const [id, entry] of pendingSyncPlans) {
+    if (now - entry.createdAt > PENDING_SYNC_TTL_MS) pendingSyncPlans.delete(id);
+  }
+}
+
+function syncConfigHash({
+  excludeTables = [],
+  appendOnlyTables = [],
+  forceFullTables = [],
+  mirror = false,
+  forceChecksums = false
+}) {
+  const normalized = {
+    exclude: [...excludeTables].sort(),
+    appendOnly: [...appendOnlyTables].sort(),
+    forceFull: [...forceFullTables].sort(),
+    mirror: Boolean(mirror),
+    checksums: Boolean(forceChecksums)
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
+// Fast metadata pass: table catalog + sizes + primary keys + orphan tables +
+// the append-only modes remembered by the manifest. No checksums, so the UI
+// can render the configuration table (include / append-only / mirror) before
+// the expensive analysis runs.
+app.post('/api/clone/sync/inspect', async (req, res) => {
+  req.setTimeout(0);
+  res.setTimeout(0);
+  try {
+    const context = buildSyncContext(req.body);
+    const key = manifestKey({
+      srcHost: context.src.host,
+      srcPort: context.src.port,
+      srcDb: context.src.database,
+      dstHost: context.dst.host,
+      dstPort: context.dst.port,
+      dstDb: context.dst.database
+    });
+    const manifest = loadManifest(key);
+    const identity = await context.engine.getServerIdentity(context.src);
+    const sourceTables = await context.engine.listTablesWithMeta(context.src);
+    let destinationTables = [];
+    try {
+      destinationTables = await context.engine.listTablesWithMeta(context.dst);
+    } catch {
+      // Destination database may not exist yet.
+    }
+
+    const sourceNames = new Set(sourceTables.map((table) => table.name));
+    const orphanTables = destinationTables
+      .filter((table) => !sourceNames.has(table.name))
+      .map((table) => table.name);
+    const manifestTables = manifest?.tables || {};
+
+    res.json({
+      source: { host: context.src.host, port: context.src.port, db: context.src.database },
+      dest: { host: context.dst.host, port: context.dst.port, db: context.dst.database },
+      identity,
+      capabilities: typeof context.engine.syncCapabilities === 'function'
+        ? context.engine.syncCapabilities()
+        : {},
+      hasManifest: Boolean(manifest),
+      manifestUpdatedAt: manifest?.updatedAt || null,
+      tables: sourceTables,
+      destinationTables: destinationTables.map((table) => table.name),
+      orphanTables,
+      manifestAppendTables: Object.entries(manifestTables)
+        .filter(([, entry]) => entry.mode === 'append')
+        .map(([name]) => name)
+    });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    res.status(status).json({
+      error: status === 400 ? err.message : safeErrorMessage(err, 'No se pudo inspeccionar la base de datos.')
+    });
+  }
+});
+
+app.post('/api/clone/sync/plan', async (req, res) => {
+  // Fingerprinting a large database can take minutes; do not let the HTTP
+  // server abort the request while the source is still being read.
+  req.setTimeout(0);
+  res.setTimeout(0);
+  try {
+    const context = buildSyncContext(req.body);
+    const key = manifestKey({
+      srcHost: context.src.host,
+      srcPort: context.src.port,
+      srcDb: context.src.database,
+      dstHost: context.dst.host,
+      dstPort: context.dst.port,
+      dstDb: context.dst.database
+    });
+    const manifest = loadManifest(key);
+    const plan = await buildSyncPlan({
+      engine: context.engine,
+      src: context.src,
+      dst: context.dst,
+      excludeTables: context.excludeTables,
+      manifest,
+      forceFull: context.forceFull,
+      mirror: context.mirror,
+      appendOnlyTables: context.appendOnlyTables,
+      forceFullTables: context.forceFullTables,
+      forceChecksums: context.forceChecksums,
+      mode: context.mode
+    });
+
+    prunePendingSyncPlans();
+    const planId = crypto.randomBytes(16).toString('hex');
+    const configHash = syncConfigHash({
+      excludeTables: context.excludeTables,
+      appendOnlyTables: context.appendOnlyTables,
+      forceFullTables: context.forceFullTables,
+      mirror: context.mirror,
+      forceChecksums: context.forceChecksums
+    });
+    pendingSyncPlans.set(planId, {
+      plan,
+      src: context.src,
+      dst: context.dst,
+      engine: context.engine,
+      key,
+      configHash,
+      manifestUpdatedAt: manifest?.updatedAt || null,
+      createdAt: Date.now()
+    });
+    res.json({ planId, plan, hasManifest: Boolean(manifest), configHash });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    res.status(status).json({
+      error: status === 400 ? err.message : safeErrorMessage(err, 'No se pudo analizar la base de datos.')
+    });
+  }
+});
+
+app.post('/api/clone/sync/apply', async (req, res) => {
+  const { planId, configHash, maskData = false, concurrency = 3, verify = false } = req.body || {};
+  const pending = pendingSyncPlans.get(planId);
+  if (!pending) {
+    return res.status(404).json({ error: 'El plan expiró o no existe. Vuelve a analizar los cambios.' });
+  }
+
+  // The plan is a snapshot. Reject it if the configuration, the manifest or
+  // the source server changed since it was generated; applying it silently
+  // would copy the wrong thing.
+  if (configHash && pending.configHash && configHash !== pending.configHash) {
+    pendingSyncPlans.delete(planId);
+    return res.status(409).json({ error: 'La configuración cambió desde el análisis. Vuelve a analizar los cambios.' });
+  }
+  const currentManifest = loadManifest(pending.key);
+  if ((currentManifest?.updatedAt || null) !== pending.manifestUpdatedAt) {
+    pendingSyncPlans.delete(planId);
+    return res.status(409).json({ error: 'El manifest cambió desde el análisis (otra sincronización). Vuelve a analizar los cambios.' });
+  }
+  try {
+    const identity = await pending.engine.getServerIdentity(pending.src);
+    if (identity.serverUuid !== pending.plan.source.serverUuid || identity.version !== pending.plan.source.version) {
+      pendingSyncPlans.delete(planId);
+      return res.status(409).json({ error: 'El servidor origen cambió desde el análisis. Vuelve a analizar los cambios.' });
+    }
+  } catch (err) {
+    pendingSyncPlans.delete(planId);
+    return res.status(502).json({ error: safeErrorMessage(err, 'No se pudo verificar el servidor origen.') });
+  }
+
+  pendingSyncPlans.delete(planId);
+
+  req.setTimeout(0);
+  res.setTimeout(0);
+  req.socket?.setTimeout(0);
+  req.socket?.setNoDelay(true);
+  req.socket?.setKeepAlive(true);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const controller = new AbortController();
+  // `res` (not `req`): the request stream is already consumed by the JSON
+  // body parser, so its 'close' event can fire immediately and abort the
+  // whole sync. The response 'close' only fires on real disconnect/finish.
+  res.on('close', () => controller.abort());
+
+  (async () => {
+    try {
+      sendEvent('log', { message: `Aplicando plan incremental (${pending.plan.mode})...` });
+      const manifest = loadManifest(pending.key);
+      await applySyncPlan({
+        engine: pending.engine,
+        src: pending.src,
+        dst: pending.dst,
+        plan: pending.plan,
+        manifest,
+        key: pending.key,
+        sendEvent,
+        maskData: Boolean(maskData),
+        concurrency: Math.max(1, Math.min(8, Number(concurrency) || 3)),
+        verify: Boolean(verify),
+        signal: controller.signal
+      });
+    } catch (err) {
+      sendEvent('error', { message: safeErrorMessage(err, 'Error en la sincronización incremental.') });
+    } finally {
+      setTimeout(() => { try { res.end(); } catch {} }, 500);
+    }
+  })();
+});
+
+app.post('/api/clone/cdc/status', async (req, res) => {
+  try {
+    const context = buildSyncContext(req.body);
+    if (typeof context.engine.getCdcCapabilities !== 'function') {
+      return res.json({ capabilities: { available: false, reason: 'Este motor no soporta CDC.' } });
+    }
+    const capabilities = await context.engine.getCdcCapabilities(context.src);
+    res.json({ capabilities });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    res.status(status).json({
+      error: status === 400 ? err.message : safeErrorMessage(err, 'No se pudo consultar el estado de CDC.')
+    });
+  }
 });
 
 // ==========================================

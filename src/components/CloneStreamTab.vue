@@ -138,12 +138,12 @@
           <!-- Database stats summary -->
           <div v-if="sourceDbStats && source.db" class="mt-2.5 p-2.5 rounded-lg bg-slate-950/80 border border-white/[0.06] text-xs font-mono space-y-1">
             <div class="flex items-center justify-between text-slate-300">
-              <span class="text-slate-400">{{ t('Tamaño SQL estimado:') }}</span>
-              <strong class="text-sky-400 font-semibold text-xs">{{ formatMb(sourceDbStats.sqlMb) }}</strong>
+              <span class="text-slate-400">{{ t('Tamaño en disco (InnoDB):') }}</span>
+              <strong class="text-sky-400 font-semibold text-xs">{{ formatMb(sourceDbStats.mb) }}</strong>
             </div>
             <div class="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-white/[0.04]">
-              <span>{{ t('Almacenamiento InnoDB: {size}', { size: formatMb(sourceDbStats.mb) }) }}</span>
               <span>{{ t('{count} tablas', { count: sourceDbStats.tables }) }}</span>
+              <span class="text-slate-600">{{ t('El dump SQL puede pesar distinto.') }}</span>
             </div>
           </div>
         </div>
@@ -251,8 +251,53 @@
             :options="destDbs"
             :allow-custom="true"
             :placeholder="t('Escribe o busca BD destino (o nombre nuevo)...')"
+            @change="onDestDbChange"
           />
         </div>
+      </div>
+    </div>
+
+    <!-- Clone mode -->
+    <div class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-3 shadow-sm">
+      <div class="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+          <RefreshCw class="w-4 h-4 text-sky-400" />
+          {{ t('Modo de clonado') }}
+        </h3>
+      </div>
+      <div v-if="daemonConnected && !daemonSupportsIncremental" class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
+        {{ t('El Companion está desactualizado: reinícialo para usar el modo incremental.') }}
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/[0.12] transition cursor-pointer">
+          <input type="radio" value="full" v-model="cloneMode" @change="invalidatePlan()" class="mt-0.5 text-sky-500 bg-slate-900 border-white/20" />
+          <div>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Completo (siempre)') }}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">{{ t('Recrea y reescribe todas las tablas en cada ejecución.') }}</span>
+          </div>
+        </label>
+        <label
+          class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/[0.12] transition"
+          :class="daemonSupportsIncremental ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'"
+        >
+          <input type="radio" value="incremental" v-model="cloneMode" @change="invalidatePlan()" :disabled="!daemonSupportsIncremental" class="mt-0.5 text-sky-500 bg-slate-900 border-white/20" />
+          <div>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Incremental (solo cambios)') }}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">{{ t('Compara las tablas contra la última sincronización y solo copia lo que cambió. La primera vez hace una copia completa.') }}</span>
+          </div>
+        </label>
+        <label
+          class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/[0.12] transition md:col-span-2"
+          :class="daemonSupportsIncremental ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'"
+        >
+          <input type="radio" value="cdc" v-model="cloneMode" @change="checkCdc" :disabled="!daemonSupportsIncremental" class="mt-0.5 text-sky-500 bg-slate-900 border-white/20" />
+          <div>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Modo CDC (solo cambios)') }}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">
+              {{ cdcStatus ? (cdcStatus.available ? t('CDC disponible: {engine}', { engine: cdcStatus.engine || '' }) : t('CDC no disponible: {reason}', { reason: cdcStatus.reason || '' })) : t('Detectando CDC...') }}
+            </span>
+          </div>
+        </label>
       </div>
     </div>
 
@@ -287,17 +332,17 @@
           </div>
         </label>
 
-        <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/10 cursor-pointer transition-colors">
+        <label v-if="cloneMode === 'full'" class="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-white/[0.06] hover:border-white/10 cursor-pointer transition-colors">
           <input type="checkbox" v-model="cleanDest" class="mt-0.5 rounded text-sky-500 focus:ring-0 focus:ring-offset-0 bg-slate-900 border-white/20" />
           <div>
-            <span class="text-xs font-medium text-slate-200 block">{{ t('Recrear base de datos destino (Idempotencia / Clean Slate)') }}</span>
+            <span class="text-xs font-medium text-slate-200 block">{{ t('Recrear base de datos destino (DROP DATABASE)') }}</span>
             <span class="text-[11px] text-slate-400 block mt-0.5">{{ t('Ejecuta') }} <code>DROP DATABASE IF EXISTS</code> {{ t('antes de clonar para limpiar tablas huérfanas o intentos parciales.') }}</span>
           </div>
         </label>
       </div>
 
-      <!-- Table checklist -->
-      <div v-if="availableTables.length > 0" class="space-y-2.5 pt-2 border-t border-white/[0.06]">
+      <!-- Table configuration (fast metadata, no checksums) -->
+      <div class="space-y-2.5 pt-2 border-t border-white/[0.06]">
         <div class="flex items-center justify-between">
           <span class="text-xs font-medium text-slate-300">
             {{ t('Tablas a incluir ({selected} de {total} seleccionadas):', { selected: selectedTablesCount, total: availableTables.length }) }}
@@ -315,20 +360,184 @@
           </div>
         </div>
 
-        <div class="max-h-44 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 p-3 rounded-lg bg-slate-950/80 border border-white/[0.06]">
-          <label
-            v-for="tbl in availableTables"
-            :key="tbl"
-            class="flex items-center gap-2 text-xs text-slate-300 p-1.5 hover:bg-slate-900 rounded transition cursor-pointer"
-          >
-            <input
-              type="checkbox"
-              :value="tbl"
-              v-model="selectedTables"
-              class="rounded text-sky-500 bg-slate-900 border-white/20"
-            />
-            <span class="truncate font-mono text-[11px]" :title="tbl">{{ tbl }}</span>
-          </label>
+        <div v-if="isInspecting" class="p-3 text-xs text-slate-400">
+          {{ t('Leyendo metadatos de las tablas...') }}
+        </div>
+        <div v-else-if="inspectError" class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs">
+          {{ t('No se pudo inspeccionar: {error}', { error: inspectError }) }}
+        </div>
+        <div v-else-if="inspectData" class="max-h-72 overflow-y-auto rounded-lg border border-white/[0.06]">
+          <table class="w-full text-xs">
+            <thead class="bg-slate-950/80 text-slate-400 sticky top-0">
+              <tr>
+                <th class="text-center font-medium px-2 py-2">{{ t('Incluir') }}</th>
+                <th class="text-left font-medium px-2 py-2">{{ t('Tabla') }}</th>
+                <th class="text-right font-medium px-2 py-2">{{ t('Filas') }}</th>
+                <th class="text-right font-medium px-2 py-2">{{ t('Tamaño') }}</th>
+                <th v-if="cloneMode === 'incremental'" class="text-center font-medium px-2 py-2">append-only</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="table in inspectData.tables" :key="table.name" class="border-t border-white/[0.04] hover:bg-slate-950/40">
+                <td class="px-2 py-1.5 text-center">
+                  <input
+                    type="checkbox"
+                    :value="table.name"
+                    v-model="selectedTables"
+                    class="rounded text-sky-500 bg-slate-900 border-white/20"
+                  />
+                </td>
+                <td class="px-2 py-1.5 font-mono text-[11px] text-slate-200 truncate max-w-[18rem]" :title="table.name">{{ table.name }}</td>
+                <td class="px-2 py-1.5 text-right font-mono text-slate-400">{{ table.rows }}</td>
+                <td class="px-2 py-1.5 text-right font-mono text-slate-400">{{ formatMb(table.bytes / (1024 * 1024)) }}</td>
+                <td v-if="cloneMode === 'incremental'" class="px-2 py-1.5 text-center">
+                  <input
+                    v-if="canMarkAppend(table)"
+                    type="checkbox"
+                    :checked="appendOnlyTables.includes(table.name)"
+                    @change="toggleAppendOnly(table)"
+                    class="rounded text-sky-500 bg-slate-900 border-white/20"
+                    :title="t('Se asume que la tabla solo recibe INSERTs; si se actualizan filas existentes, desmarca esta opción.')"
+                  />
+                  <span v-else class="text-slate-600">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p v-if="cloneMode === 'incremental'" class="text-[11px] text-amber-300/80">
+          {{ t('Marca append-only las tablas grandes que solo reciben INSERTs; así no se copian completas en cada sync.') }}
+        </p>
+
+        <label v-if="cloneMode === 'incremental'" class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" v-model="mirrorDest" class="rounded text-sky-500 bg-slate-900 border-white/20" />
+          <span>{{ t('Espejo exacto: eliminar en destino las tablas que ya no existen en origen.') }}</span>
+        </label>
+        <label v-if="cloneMode === 'incremental'" class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" v-model="forceChecksums" class="rounded text-sky-500 bg-slate-900 border-white/20" />
+          <span>{{ t('Verificación completa (checksums, lento)') }}</span>
+        </label>
+        <div v-if="cloneMode === 'incremental' && inspectData && inspectData.orphanTables.length > 0" class="text-[11px] text-slate-400">
+          {{ t('Huérfanas en destino: {count}', { count: inspectData.orphanTables.length }) }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Incremental / CDC plan -->
+    <div v-if="cloneMode !== 'full'" class="p-5 rounded-xl bg-slate-900/50 border border-white/[0.08] space-y-4 shadow-sm">
+      <div class="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+        <div>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <Shield class="w-4 h-4 text-emerald-400" />
+            {{ t('Cambios detectados') }}
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">{{ t('Analiza antes de aplicar: verás qué tablas se copian y cuánto se evita transferir.') }}</p>
+          <p class="text-[11px] text-slate-500 mt-1">{{ t('La configuración (tablas, append-only y espejo) está en el panel de filtros, antes de analizar.') }}</p>
+        </div>
+        <button
+          @click="analyzeChanges"
+          :disabled="!canClone || isPlanning || isInspecting || !inspectData"
+          class="px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 transition cursor-pointer"
+        >
+          <RefreshCw class="w-3.5 h-3.5" :class="isPlanning ? 'animate-spin' : ''" />
+          <span>{{ isPlanning ? t('Analizando...') : t('Analizar cambios') }}</span>
+        </button>
+      </div>
+
+      <div v-if="planError" class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs">
+        {{ t('No se pudo analizar: {error}', { error: planError }) }}
+      </div>
+
+      <div v-if="largeUnmarkedTables.length > 0" class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-2">
+        <div>
+          {{ t('Estas tablas grandes se copiarán completas cuando cambien. Si solo reciben INSERTs, márcalas append-only para copiar únicamente las filas nuevas:') }}
+        </div>
+        <div class="font-mono text-[11px]">
+          {{ largeUnmarkedTables.map((table) => `${table.name} (${formatMb(table.bytes / (1024 * 1024))})`).join(', ') }}
+        </div>
+        <button
+          @click="markLargeAsAppendOnly"
+          class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 rounded text-[11px] font-medium transition cursor-pointer"
+        >
+          {{ t('Marcar como append-only') }}
+        </button>
+      </div>
+
+      <div v-if="planStale && !syncPlan" class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
+        {{ t('La configuración cambió. Vuelve a analizar para recalcular el plan.') }}
+      </div>
+
+      <div v-if="syncPlan" class="space-y-3">
+        <div v-if="syncPlan.fingerprintMode === 'metadata' || syncPlan.fingerprintMode === 'mixed'" class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
+          {{ t('El origen no tiene Performance Schema (o le faltan contadores): el análisis usó metadatos de InnoDB (rápido) y puede no detectar UPDATEs. Activa performance_schema en el origen (recomendado) o marca "Verificación completa" para exactitud.') }}
+        </div>
+        <div v-else-if="syncPlan.fingerprintMode === 'checksum'" class="p-3 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-200 text-xs">
+          {{ t('Verificación completa: el análisis leyó los datos y puede tardar.') }}
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs font-mono">
+          <div class="p-2.5 rounded-lg bg-slate-950/70 border border-white/[0.06]">
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">{{ t('Sin cambios') }}</div>
+            <div class="text-slate-200 mt-0.5">{{ syncPlan.summary.unchanged }}</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-950/70 border border-white/[0.06]">
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">{{ t('A copiar') }}</div>
+            <div class="text-sky-300 mt-0.5">{{ syncPlan.summary.toCopy }}</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-950/70 border border-white/[0.06]">
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">{{ t('Nuevas') }}</div>
+            <div class="text-emerald-300 mt-0.5">{{ syncPlan.summary.newTables }}</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-950/70 border border-white/[0.06]">
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">{{ t('Cambios de esquema') }}</div>
+            <div class="text-amber-300 mt-0.5">{{ syncPlan.summary.schemaChanged }}</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-950/70 border border-white/[0.06]">
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">{{ t('Huérfanas en destino') }}</div>
+            <div class="text-slate-300 mt-0.5">{{ syncPlan.summary.orphan }}</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-950/70 border border-white/[0.06]">
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">{{ t('Bytes a transferir') }}</div>
+            <div class="text-white mt-0.5">{{ formatMb(syncPlan.summary.bytesToCopy / (1024 * 1024)) }}</div>
+          </div>
+        </div>
+
+        <div v-if="syncPlan.mode === 'cdc'" class="p-3 rounded-lg bg-slate-950/70 border border-white/[0.06] text-xs text-slate-300">
+          <span class="font-medium text-slate-200">{{ t('Modo CDC (solo cambios)') }}</span>
+          <span v-if="syncPlan.cdc?.available" class="text-emerald-300"> · {{ syncPlan.cdc.engine }}</span>
+          <span v-else class="text-amber-300"> · {{ t('CDC no disponible: {reason}', { reason: syncPlan.cdc?.reason || '' }) }}</span>
+          <span v-if="syncPlan.requiresFull" class="text-amber-300"> · {{ t('Ejecuta primero un clon completo para registrar la posición.') }}</span>
+        </div>
+
+        <div class="max-h-64 overflow-y-auto rounded-lg border border-white/[0.06]">
+          <table class="w-full text-xs">
+            <thead class="bg-slate-950/80 text-slate-400 sticky top-0">
+              <tr>
+                <th class="text-left font-medium px-3 py-2">{{ t('Tabla') }}</th>
+                <th class="text-left font-medium px-3 py-2">{{ t('Estado') }}</th>
+                <th class="text-right font-medium px-3 py-2">{{ t('Filas') }}</th>
+                <th class="text-right font-medium px-3 py-2">{{ t('Tamaño') }}</th>
+                <th class="text-center font-medium px-3 py-2">append-only</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="table in sortedPlanTables" :key="table.name" class="border-t border-white/[0.04] hover:bg-slate-950/40">
+                <td class="px-3 py-1.5 font-mono text-[11px] text-slate-200 truncate max-w-[18rem]" :title="table.name">{{ table.name }}</td>
+                <td class="px-3 py-1.5">
+                  <span :class="actionClass(table.action)" class="px-2 py-0.5 rounded text-[10px] font-medium border">
+                    {{ actionLabel(table.action) }}
+                  </span>
+                </td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-400">{{ table.rows }}</td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-400">{{ formatMb(table.bytes / (1024 * 1024)) }}</td>
+                <td class="px-3 py-1.5 text-center">
+                  <span v-if="table.appendOnly" class="text-emerald-300 text-[10px] font-medium">append-only</span>
+                  <span v-else class="text-slate-600" :title="t('No marcada: si la tabla cambia, se copiará completa.')">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -395,17 +604,23 @@
         <div v-if="!isCloning" class="flex flex-col gap-1.5">
           <button
             @click="startClone"
-            :disabled="!canClone"
+            :disabled="!canClone || isPlanning || isInspecting || (cloneMode !== 'full' && (!inspectData || !syncPlanId || !hasChanges))"
             class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--bks-on-accent)] font-medium rounded-lg text-xs flex items-center gap-2 transition shadow-sm cursor-pointer active:scale-[0.98]"
           >
             <Play class="w-4 h-4 fill-current" />
-            <span>{{ t('Iniciar Clonado Stream') }}</span>
+            <span>{{ primaryActionLabel }}</span>
           </button>
           <span v-if="cloneMotorUnsupported" class="text-[11px] text-amber-400">
             {{ t('Clonado en streaming no soportado para {engine} todavía.', { engine: source.motor.toUpperCase() }) }}
           </span>
           <span v-else-if="cloneMotorMismatch" class="text-[11px] text-amber-400">
             {{ t('Origen ({source}) y destino ({dest}) deben ser el mismo motor.', { source: source.motor.toUpperCase(), dest: dest.motor.toUpperCase() }) }}
+          </span>
+          <span v-else-if="cloneMode !== 'full' && !syncPlanId" class="text-[11px] text-slate-400">
+            {{ t('Sin plan. Analiza los cambios primero.') }}
+          </span>
+          <span v-else-if="cloneMode !== 'full' && syncPlan && !hasChanges" class="text-[11px] text-emerald-400">
+            {{ t('No hay cambios que aplicar.') }}
           </span>
         </div>
 
@@ -419,30 +634,42 @@
         </button>
 
         <div v-if="isCloning" class="text-xs text-slate-400 flex items-center gap-4 font-mono">
-          <span>{{ t('Velocidad:') }} <strong class="text-white">{{ progress.speedMb }} MB/s</strong></span>
-          <span>{{ t('Transferido:') }} <strong class="text-sky-400">{{ progress.mb }} MB</strong></span>
-          <span>{{ t('Tiempo:') }} <strong class="text-white">{{ progress.elapsedSec }}s</strong></span>
+          <template v-if="cloneMode === 'full'">
+            <span>{{ t('Velocidad:') }} <strong class="text-white">{{ progress.speedMb }} MB/s</strong></span>
+            <span>{{ t('Transferido:') }} <strong class="text-sky-400">{{ progress.mb }} MB</strong></span>
+            <span>{{ t('Tiempo:') }} <strong class="text-white">{{ progress.elapsedSec }}s</strong></span>
+          </template>
+          <template v-else>
+            <span>{{ t('Transferido:') }} <strong class="text-sky-400">{{ syncProgress.mb }} MB</strong></span>
+            <span>{{ t('Progreso incremental:') }} <strong class="text-white">{{ syncProgress.percent }}%</strong></span>
+          </template>
         </div>
       </div>
 
       <!-- Animated Progress Bar with real percentage & ETA -->
       <div v-if="isCloning" class="space-y-1.5">
         <div class="flex items-center justify-between text-xs text-slate-300 font-mono">
-          <span>
-            {{ t('Progreso:') }} <strong class="text-sky-400">{{ transferPercent }}%</strong>
+          <span v-if="cloneMode === 'full'">
+            {{ t('Progreso aproximado:') }} <strong class="text-sky-400">{{ transferPercent }}%</strong>
             <span class="text-slate-500 text-[11px] ml-1">
-              {{ t('({mb} MB de ~{total})', { mb: progress.mb, total: formatMb(sourceDbStats?.sqlMb || 4000) }) }}
+              {{ t('({mb} MB de ~{total})', { mb: progress.mb, total: formatMb(sourceDbStats?.mb || 4000) }) }}
             </span>
           </span>
-          <span v-if="estimatedTimeRemaining" class="text-emerald-400 text-xs font-mono flex items-center gap-1">
-            <span>{{ t('Restante:') }}</span>
+          <span v-else>
+            {{ t('Progreso:') }} <strong class="text-sky-400">{{ syncProgress.percent }}%</strong>
+            <span class="text-slate-500 text-[11px] ml-1">
+              {{ t('({mb} MB de ~{total})', { mb: syncProgress.mb, total: formatMb(syncProgress.totalBytes / (1024 * 1024)) }) }}
+            </span>
+          </span>
+          <span v-if="cloneMode === 'full' && estimatedTimeRemaining" class="text-emerald-400 text-xs font-mono flex items-center gap-1">
+            <span>{{ t('Restante estimado:') }}</span>
             <strong class="text-emerald-300">~{{ estimatedTimeRemaining }}</strong>
           </span>
         </div>
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-white/[0.08]">
           <div
             class="bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 h-full transition-all duration-300 rounded-full"
-            :style="{ width: `${Math.max(3, transferPercent)}%` }"
+            :style="{ width: `${Math.max(3, cloneMode === 'full' ? transferPercent : syncProgress.percent)}%` }"
           ></div>
         </div>
       </div>
@@ -494,7 +721,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import {
   RefreshCw,
   Shield,
@@ -511,11 +738,17 @@ import CompanionOfflineBanner from './CompanionOfflineBanner.vue';
 import {
   checkCompanionStatus,
   getSavedConnections,
-  getTablesList,
   getDatabaseInfo,
   startStreamClone,
+  inspectSyncClone,
+  planSyncClone,
+  startSyncClone,
+  getCdcStatus,
   formatConnOption,
-  type SavedConnection
+  type SavedConnection,
+  type SyncInspect,
+  type SyncInspectTable,
+  type SyncPlan
 } from '../services/companion';
 import {
   fetchCurrentConnection,
@@ -528,6 +761,7 @@ import SearchableSelect from './SearchableSelect.vue';
 import { t } from '../i18n';
 
 const daemonConnected = ref(false);
+const daemonFeatures = ref<Record<string, boolean>>({});
 const availableConns = ref<SavedConnection[]>([]);
 const selectedSourceConn = ref<any>('custom');
 const selectedDestConn = ref<any>('custom');
@@ -563,7 +797,29 @@ const maskData = ref(false);
 const autoSanitize = ref(true);
 const cleanDest = ref(true);
 
-const sourceDbStats = ref<{ mb: number; tables: number; sqlMb: number } | null>(null);
+const cloneMode = ref<'full' | 'incremental' | 'cdc'>('incremental');
+const syncPlan = ref<SyncPlan | null>(null);
+const syncPlanId = ref<string | null>(null);
+const isPlanning = ref(false);
+const planError = ref<string | null>(null);
+const appendOnlyTables = ref<string[]>([]);
+const forceFullTables = ref<string[]>([]);
+const mirrorDest = ref(false);
+const forceChecksums = ref(false);
+const cdcStatus = ref<SyncPlan['cdc'] | null>(null);
+const syncProgress = ref({ bytes: 0, totalBytes: 0, mb: '0', totalMb: '0', percent: 0 });
+const syncTableStatus = ref<Record<string, string>>({});
+
+// Fast metadata pass: table catalog + sizes + PKs + orphan tables + the
+// append-only modes remembered by the manifest. This is what the user
+// configures before running the expensive checksum analysis.
+const inspectData = ref<SyncInspect | null>(null);
+const isInspecting = ref(false);
+const inspectError = ref<string | null>(null);
+const planConfigHash = ref<string | null>(null);
+const planStale = ref(false);
+
+const sourceDbStats = ref<{ mb: number; tables: number } | null>(null);
 const isCloning = ref(false);
 const cloneError = ref<string | null>(null);
 const cloneSuccess = ref<string | null>(null);
@@ -574,6 +830,8 @@ const copiedLogs = ref(false);
 const copiedError = ref(false);
 let stopCloneFn: (() => void) | null = null;
 let lastSyncedDb = '';
+let planRequestId = 0;
+let cdcRequestId = 0;
 
 function formatMb(mb: number | undefined | null) {
   if (!mb) return '0 MB';
@@ -585,7 +843,9 @@ function formatMb(mb: number | undefined | null) {
 
 const transferPercent = computed(() => {
   const currentMb = parseFloat(progress.value.mb) || 0;
-  const totalMb = sourceDbStats.value?.sqlMb || 4000;
+  // Use the real on-disk size, not the old `mb * 2.8` SQL estimate: the dump
+  // can be larger or smaller, so this is explicitly approximate.
+  const totalMb = sourceDbStats.value?.mb || 4000;
   if (totalMb <= 0) return 0;
   const pct = Math.round((currentMb / totalMb) * 100);
   return Math.min(99, Math.max(0, pct));
@@ -594,7 +854,7 @@ const transferPercent = computed(() => {
 const estimatedTimeRemaining = computed(() => {
   const currentMb = parseFloat(progress.value.mb) || 0;
   const speed = parseFloat(progress.value.speedMb) || 0;
-  const totalMb = sourceDbStats.value?.sqlMb || 4000;
+  const totalMb = sourceDbStats.value?.mb || 4000;
   const remainingMb = totalMb - currentMb;
   if (speed <= 0 || remainingMb <= 0) return null;
   const totalSecs = Math.round(remainingMb / speed);
@@ -672,9 +932,282 @@ const canClone = computed(() => {
 
 const selectedTablesCount = computed(() => selectedTables.value.length);
 
+const primaryActionLabel = computed(() => {
+  if (cloneMode.value === 'full') return t('Iniciar Clonado Stream');
+  if (cloneMode.value === 'cdc') {
+    return syncPlanId.value ? t('Iniciar Sync CDC') : t('Analizar cambios');
+  }
+  return syncPlanId.value ? t('Iniciar Sync Incremental') : t('Analizar cambios');
+});
+
+const sortedPlanTables = computed(() => {
+  if (!syncPlan.value) return [];
+  // Largest first: the table that dominates the transfer should be the one
+  // the user sees (and can mark append-only) without scrolling.
+  return [...syncPlan.value.tables].sort((a, b) => b.bytes - a.bytes);
+});
+
+const hasChanges = computed(() => Boolean(
+  syncPlan.value &&
+  (syncPlan.value.summary.toCopy > 0 || syncPlan.value.summary.dropped > 0)
+));
+
+const LARGE_TABLE_THRESHOLD = 256 * 1024 * 1024;
+const largeUnmarkedTables = computed(() => {
+  if (!inspectData.value) return [];
+  const included = new Set(selectedTables.value);
+  return inspectData.value.tables
+    .filter((table) =>
+      included.has(table.name) &&
+      canMarkAppend(table) &&
+      !appendOnlyTables.value.includes(table.name)
+    )
+    .filter((table) => table.bytes >= LARGE_TABLE_THRESHOLD)
+    .sort((a, b) => b.bytes - a.bytes);
+});
+
+function markLargeAsAppendOnly() {
+  for (const table of largeUnmarkedTables.value) {
+    if (!appendOnlyTables.value.includes(table.name)) appendOnlyTables.value.push(table.name);
+    forceFullTables.value = forceFullTables.value.filter((name) => name !== table.name);
+  }
+  invalidatePlan();
+}
+
+function buildSyncParams() {
+  const excluded = availableTables.value.filter((tbl) => !selectedTables.value.includes(tbl));
+  return {
+    srcHost: source.value.host,
+    srcPort: source.value.port,
+    srcUser: source.value.user,
+    srcPass: source.value.pass,
+    srcDb: source.value.db,
+    dstHost: dest.value.host,
+    dstPort: dest.value.port,
+    dstUser: dest.value.user,
+    dstPass: dest.value.pass,
+    dstDb: dest.value.db,
+    motor: source.value.motor,
+    excludeTables: excluded,
+    appendOnlyTables: appendOnlyTables.value,
+    forceFullTables: forceFullTables.value,
+    mirror: mirrorDest.value,
+    forceChecksums: forceChecksums.value,
+    mode: cloneMode.value === 'cdc' ? ('cdc' as const) : ('incremental' as const)
+  };
+}
+
+async function checkCdc() {
+  if (!canClone.value) {
+    cdcStatus.value = { available: false, reason: t('Selecciona origen y destino primero.') };
+    return;
+  }
+  const requestId = ++cdcRequestId;
+  const res = await getCdcStatus(buildSyncParams());
+  if (requestId !== cdcRequestId) return;
+  cdcStatus.value = res.ok
+    ? res.capabilities
+    : { available: false, reason: res.error };
+  invalidatePlan();
+}
+
+function invalidatePlan(markStale = true) {
+  if (markStale && syncPlanId.value) planStale.value = true;
+  planRequestId += 1;
+  isPlanning.value = false;
+  syncPlan.value = null;
+  syncPlanId.value = null;
+  planConfigHash.value = null;
+  planError.value = null;
+  syncTableStatus.value = {};
+}
+
+async function analyzeChanges() {
+  if (!canClone.value || isPlanning.value || !inspectData.value) return;
+  planError.value = null;
+  invalidatePlan(false);
+  planStale.value = false;
+  isPlanning.value = true;
+  const requestId = planRequestId;
+  const res = await planSyncClone(buildSyncParams());
+  if (requestId !== planRequestId) return;
+  isPlanning.value = false;
+  if (!res.ok) {
+    planError.value = res.error;
+    return;
+  }
+  syncPlan.value = res.plan;
+  syncPlanId.value = res.planId;
+  planConfigHash.value = res.configHash;
+}
+
+async function loadInspect() {
+  invalidatePlan(false);
+  planStale.value = false;
+  if (!source.value.db || !dest.value.db) {
+    inspectData.value = null;
+    availableTables.value = [];
+    selectedTables.value = [];
+    return;
+  }
+
+  isInspecting.value = true;
+  inspectError.value = null;
+  const res = await inspectSyncClone(buildSyncParams());
+  isInspecting.value = false;
+  if (!res.ok) {
+    inspectError.value = res.error;
+    inspectData.value = null;
+    return;
+  }
+
+  inspectData.value = res.data;
+  availableTables.value = res.data.tables.map((table) => table.name);
+  selectedTables.value = [...availableTables.value];
+  // The manifest remembers append-only across sessions; pre-check those so
+  // the user does not have to re-mark the big table on every visit.
+  appendOnlyTables.value = res.data.manifestAppendTables
+    .filter((name) => availableTables.value.includes(name));
+  forceFullTables.value = [];
+}
+
+function canMarkAppend(table: SyncInspectTable) {
+  return table.type !== 'view' && Boolean(table.primaryKey) && table.autoIncrement;
+}
+
+function toggleAppendOnly(table: SyncInspectTable) {
+  if (appendOnlyTables.value.includes(table.name)) {
+    // The manifest remembers append mode across sessions; unchecking it must
+    // be an explicit override, not just an absent checkbox.
+    if (!forceFullTables.value.includes(table.name)) forceFullTables.value.push(table.name);
+    appendOnlyTables.value = appendOnlyTables.value.filter((name) => name !== table.name);
+  } else {
+    if (!appendOnlyTables.value.includes(table.name)) appendOnlyTables.value.push(table.name);
+    forceFullTables.value = forceFullTables.value.filter((name) => name !== table.name);
+  }
+  invalidatePlan();
+}
+
+function actionLabel(action: string) {
+  if (action === 'skip') return t('Sin cambios');
+  if (action === 'append') return t('Solo filas nuevas');
+  if (action === 'drop') return t('Eliminar en destino');
+  return t('Copiar completa');
+}
+
+function actionClass(action: string) {
+  if (action === 'skip') return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+  if (action === 'append') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+  if (action === 'drop') return 'bg-rose-500/10 text-rose-300 border-rose-500/30';
+  return 'bg-sky-500/10 text-sky-300 border-sky-500/30';
+}
+
+function startIncrementalSync() {
+  if (!syncPlanId.value || !hasChanges.value) return;
+  isCloning.value = true;
+  cloneError.value = null;
+  cloneSuccess.value = null;
+  logs.value = [];
+  syncTableStatus.value = {};
+  syncProgress.value = {
+    bytes: 0,
+    totalBytes: syncPlan.value?.summary.bytesToCopy || 0,
+    mb: '0',
+    totalMb: ((syncPlan.value?.summary.bytesToCopy || 0) / (1024 * 1024)).toFixed(2),
+    percent: 0
+  };
+
+  stopCloneFn = startSyncClone(
+    {
+      planId: syncPlanId.value,
+      configHash: planConfigHash.value || undefined,
+      maskData: maskData.value,
+      concurrency: 3,
+      // Counting both sides is an extra scan and can produce false failures
+      // on a live source that changes during the copy; the dump/restore exit
+      // code and stderr ERROR tracking are the primary correctness signals.
+      verify: false
+    },
+    {
+      onLog: (msg) => {
+        logs.value.push(msg);
+        scrollToBottom();
+      },
+      onProgress: (p) => {
+        syncProgress.value = p;
+      },
+      onTableStart: (info) => {
+        syncTableStatus.value[info.table] = 'running';
+        logs.value.push(`[SYNC] ${info.table} (${info.action})`);
+        scrollToBottom();
+      },
+      onTableDone: (info) => {
+        syncTableStatus.value[info.table] = 'ok';
+        logs.value.push(`✔ ${info.table}`);
+        scrollToBottom();
+      },
+      onTableError: (info) => {
+        syncTableStatus.value[info.table] = 'error';
+        logs.value.push(`✘ ${info.table}: ${info.message}`);
+        scrollToBottom();
+      },
+      onComplete: (res) => {
+        cloneSuccess.value = res.message;
+        isCloning.value = false;
+        logs.value.push(res.message);
+        scrollToBottom();
+      },
+      onError: (err) => {
+        cloneError.value = err;
+        isCloning.value = false;
+        logs.value.push(`✘ ${err}`);
+        scrollToBottom();
+      }
+    }
+  );
+}
+
+// Source/destination changes invalidate the plan and the CDC probe. The
+// table catalog is reloaded by onSourceDbChange / onDestDbChange / loadInspect.
+watch(
+  [
+    () => source.value.host,
+    () => source.value.port,
+    () => source.value.user,
+    () => source.value.db,
+    () => source.value.motor,
+    () => dest.value.host,
+    () => dest.value.port,
+    () => dest.value.user,
+    () => dest.value.db
+  ],
+  () => {
+    cdcRequestId += 1;
+    cdcStatus.value = null;
+    invalidatePlan();
+  }
+);
+
+// Configuration changes (included tables, append-only, force-full, mirror)
+// invalidate the plan. maskData is deliberately NOT here: it is an apply
+// option and does not change what the plan computes.
+watch(
+  [selectedTables, appendOnlyTables, forceFullTables, () => mirrorDest.value, () => forceChecksums.value],
+  () => invalidatePlan(),
+  { deep: true }
+);
+
+const daemonSupportsIncremental = computed(() => daemonFeatures.value.incrementalSync === true);
+
 async function checkDaemon() {
   const status = await checkCompanionStatus();
   daemonConnected.value = Boolean(status?.ok);
+  daemonFeatures.value = status?.features || {};
+  // An old daemon (started before incremental sync existed) must not leave
+  // the UI in a mode whose endpoints it does not implement.
+  if (daemonConnected.value && !daemonSupportsIncremental.value && cloneMode.value !== 'full') {
+    cloneMode.value = 'full';
+  }
   if (daemonConnected.value) {
     availableConns.value = await getSavedConnections();
   }
@@ -705,6 +1238,7 @@ async function onDestConnChange() {
     // empty makes the daemon resolve the saved one server-side when needed.
     dest.value.pass = '';
     await loadDestDbs();
+    await loadInspect();
   }
 }
 
@@ -736,7 +1270,7 @@ async function loadSourceDbs() {
       source.value.db = sourceDbs.value[0];
     }
     syncDestDbWithSource();
-    await loadTablesForExclusion();
+    await loadInspect();
     await loadSourceDbStats();
   }
 }
@@ -765,8 +1299,12 @@ async function loadDestDbs() {
 
 async function onSourceDbChange() {
   syncDestDbWithSource();
-  await loadTablesForExclusion();
+  await loadInspect();
   await loadSourceDbStats();
+}
+
+async function onDestDbChange() {
+  await loadInspect();
 }
 
 async function loadSourceDbStats() {
@@ -798,24 +1336,14 @@ function syncDestDbWithSource() {
   }
 }
 
-async function loadTablesForExclusion() {
-  if (!source.value.db) return;
-  availableTables.value = await getTablesList({
-    motor: source.value.motor,
-    host: source.value.host,
-    port: source.value.port,
-    user: source.value.user,
-    pass: source.value.pass,
-    database: source.value.db
-  });
-  selectedTables.value = [...availableTables.value];
-}
-
 function selectAllTables(val: boolean) {
   selectedTables.value = val ? [...availableTables.value] : [];
 }
 
 function excludeHeavyTables() {
+  // Logs/telemetry only. The big `analisis_financiero_jsons` table is NOT
+  // excluded here on purpose: it is business data, and the incremental mode
+  // can copy only its new rows when the user marks it append-only.
   const heavyKeywords = [
     'pulse_',
     'telescope_',
@@ -823,8 +1351,6 @@ function excludeHeavyTables() {
     'audit',
     'activity',
     'sessions',
-    'analisis_financiero',
-    '_jsons',
     'cache'
   ];
   selectedTables.value = availableTables.value.filter((tbl) => {
@@ -835,6 +1361,15 @@ function excludeHeavyTables() {
 
 function startClone() {
   if (!canClone.value) return;
+
+  if (cloneMode.value !== 'full') {
+    if (!syncPlanId.value) {
+      void analyzeChanges();
+      return;
+    }
+    startIncrementalSync();
+    return;
+  }
 
   const excluded = availableTables.value.filter((tbl) => !selectedTables.value.includes(tbl));
   logs.value = [];

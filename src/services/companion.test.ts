@@ -143,13 +143,13 @@ describe('getDatabaseInfo', () => {
   it('normalizes missing numeric fields to 0', async () => {
     ;(fetch as any).mockResolvedValue(jsonResponse({}))
     const result = await getDatabaseInfo({ motor: 'mysql', host: '127.0.0.1', port: 3306, user: 'root', database: 'db1' })
-    expect(result).toEqual({ mb: 0, tables: 0, sqlMb: 0 })
+    expect(result).toEqual({ mb: 0, tables: 0 })
   })
 
   it('returns zeroed info on failure instead of throwing', async () => {
     ;(fetch as any).mockRejectedValue(new Error('boom'))
     const result = await getDatabaseInfo({ motor: 'mysql', host: '127.0.0.1', port: 3306, user: 'root', database: 'db1' })
-    expect(result).toEqual({ mb: 0, tables: 0, sqlMb: 0 })
+    expect(result).toEqual({ mb: 0, tables: 0 })
   })
 })
 

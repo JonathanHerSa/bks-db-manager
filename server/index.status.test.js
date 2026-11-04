@@ -103,6 +103,7 @@ describe('GET /api/status', () => {
     expect(res.body.tools).toEqual({
       mysql: true,
       mysqldump: false,
+      mysqlbinlog: false,
       psql: false,
       pg_dump: false,
       mongodump: false,
@@ -118,6 +119,7 @@ describe('GET /api/status', () => {
     expect(res.body.tools).toEqual({
       mysql: false,
       mysqldump: false,
+      mysqlbinlog: false,
       psql: false,
       pg_dump: false,
       mongodump: false,

@@ -110,6 +110,10 @@ export const en = {
   'Escribe para filtrar o buscar BD origen...': 'Type to filter or search a source database...',
   'Tamaño SQL estimado:': 'Estimated SQL size:',
   'Almacenamiento InnoDB: {size}': 'InnoDB storage: {size}',
+  'Tamaño en disco (InnoDB):': 'On-disk size (InnoDB):',
+  'El dump SQL puede pesar distinto.': 'The SQL dump can weigh differently.',
+  'Progreso aproximado:': 'Approximate progress:',
+  'Restante estimado:': 'Estimated remaining:',
   '{count} tablas': '{count} tables',
   '2. Servidor Destino (Escritura)': '2. Destination Server (Write)',
   '{count} en destino': '{count} at destination',
@@ -156,6 +160,73 @@ export const en = {
   'Limpiar terminal': 'Clear terminal',
   'Limpiar': 'Clear',
   '⏹ Clonado cancelado por el usuario.': '⏹ Clone cancelled by the user.',
+  'Modo de clonado': 'Clone mode',
+  'Completo (siempre)': 'Full (always)',
+  'Incremental (solo cambios)': 'Incremental (changes only)',
+  'Compara las tablas contra la última sincronización y solo copia lo que cambió. La primera vez hace una copia completa.':
+    'Compares tables against the last sync and copies only what changed. The first run is a full copy.',
+  'Recrea y reescribe todas las tablas en cada ejecución.':
+    'Recreates and rewrites every table on each run.',
+  'Analiza antes de aplicar: verás qué tablas se copian y cuánto se evita transferir.':
+    'Analyze before applying: you will see which tables are copied and how much transfer is avoided.',
+  'Marca append-only las tablas grandes que solo reciben INSERTs; así no se copian completas en cada sync.':
+    'Mark large INSERT-only tables as append-only so they are not fully copied on every sync.',
+  'La configuración (tablas, append-only y espejo) está en el panel de filtros, antes de analizar.':
+    'The configuration (tables, append-only and mirror) is in the filters panel, before analyzing.',
+  'La configuración cambió. Vuelve a analizar para recalcular el plan.':
+    'The configuration changed. Analyze again to recalculate the plan.',
+  'Estas tablas grandes se copiarán completas cuando cambien. Si solo reciben INSERTs, márcalas append-only para copiar únicamente las filas nuevas:':
+    'These large tables will be fully copied when they change. If they only receive INSERTs, mark them append-only to copy only new rows:',
+  'Marcar como append-only': 'Mark as append-only',
+  'No marcada: si la tabla cambia, se copiará completa.': 'Not marked: if the table changes, it will be fully copied.',
+  'Verificación completa (checksums, lento)': 'Full verification (checksums, slow)',
+  'El origen no tiene Performance Schema (o le faltan contadores): el análisis usó metadatos de InnoDB (rápido) y puede no detectar UPDATEs. Activa performance_schema en el origen (recomendado) o marca "Verificación completa" para exactitud.':
+    'The source does not have Performance Schema (or lacks counters): the analysis used InnoDB metadata (fast) and may miss UPDATEs. Enable performance_schema on the source (recommended) or check "Full verification" for exactness.',
+  'Verificación completa: el análisis leyó los datos y puede tardar.':
+    'Full verification: the analysis read the data and may take a while.',
+  'Leyendo metadatos de las tablas...': 'Reading table metadata...',
+  'No se pudo inspeccionar: {error}': 'Could not inspect: {error}',
+  'Huérfanas en destino: {count}': 'Orphans at destination: {count}',
+  'Incluir': 'Include',
+  'Ejecuta primero un clon completo para registrar la posición.':
+    'Run a full clone first to record the position.',
+  'Espejo exacto: eliminar en destino las tablas que ya no existen en origen.':
+    'Exact mirror: drop destination tables that no longer exist in the source.',
+  'Analizar cambios': 'Analyze changes',
+  'Cambios detectados': 'Detected changes',
+  'Sin cambios': 'Unchanged',
+  'A copiar': 'To copy',
+  'Nuevas': 'New',
+  'Cambios de esquema': 'Schema changes',
+  'Huérfanas en destino': 'Orphans at destination',
+  'Bytes a transferir': 'Bytes to transfer',
+  'Estado': 'Status',
+  'Filas': 'Rows',
+  'Append-only (solo INSERTs)': 'Append-only (INSERTs only)',
+  'Solo filas nuevas': 'New rows only',
+  'Copiar completa': 'Full copy',
+  'Eliminar en destino': 'Drop at destination',
+  'Iniciar Sync Incremental': 'Start Incremental Sync',
+  'Recrear base de datos destino (DROP DATABASE)': 'Recreate destination database (DROP DATABASE)',
+  'Se asume que la tabla solo recibe INSERTs; si se actualizan filas existentes, desmarca esta opción.':
+    'Assumes the table only receives INSERTs; if existing rows are updated, uncheck this option.',
+  'El plan expiró o no existe. Vuelve a analizar los cambios.':
+    'The plan expired or does not exist. Analyze changes again.',
+  'No hay cambios que aplicar.': 'There are no changes to apply.',
+  'Sin plan. Analiza los cambios primero.': 'No plan yet. Analyze changes first.',
+  'Modo CDC (solo cambios)': 'CDC mode (changes only)',
+  'CDC no disponible: {reason}': 'CDC not available: {reason}',
+  'CDC disponible: {engine}': 'CDC available: {engine}',
+  'Detectando CDC...': 'Detecting CDC...',
+  'Selecciona origen y destino primero.': 'Select a source and destination first.',
+  'El Companion está desactualizado: reinícialo para usar el modo incremental.':
+    'The Companion is outdated: restart it to use incremental mode.',
+  'Iniciar Sync CDC': 'Start CDC Sync',
+  'Incremental sync no soportado para {engine}.': 'Incremental sync is not supported for {engine}.',
+  'La sincronización incremental requiere el Companion activo.': 'Incremental sync requires the Companion to be online.',
+  'Progreso incremental:': 'Incremental progress:',
+  'No se pudo analizar: {error}': 'Could not analyze: {error}',
+  'Plan listo: {count} tablas a copiar.': 'Plan ready: {count} tables to copy.',
 
   // Schema diff tab
   'Comparador de Esquemas & Migraciones SQL': 'Schema Comparator & SQL Migrations',
